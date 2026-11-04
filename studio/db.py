@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from studio.generator import CATEGORIES, PlanningContext, ThemeDraft
+from studio.generator import CATEGORIES, PlanningContext, ThemeDraft, validate_drafts
 
 STATUSES = ("未承認", "修正済み", "承認", "却下")
 PROGRESS = ("未着手", "構成作成", "素材準備", "編集", "確認待ち", "完成", "投稿済み")
@@ -66,8 +66,7 @@ class Store:
             conn.close()
 
     def save_batch(self, context: PlanningContext, provider: str, drafts: list[ThemeDraft]):
-        if len(drafts) != 10:
-            raise ValueError("テーマは10案必要です。")
+        validate_drafts(drafts)
         for draft in drafts:
             self.validate_text(draft.title, draft.outline, "")
             if draft.category not in CATEGORIES or not 0 <= draft.score <= 100:

@@ -5,7 +5,9 @@ from datetime import datetime, timedelta, timezone
 import streamlit as st
 
 from studio.db import PROGRESS, Store
-from studio.generator import CATEGORIES, OfflineThemeGenerator, PlanningContext
+from studio.generator import CATEGORIES, PlanningContext
+from studio.planning import generate_and_save
+from studio.research_ui import research_page
 
 st.set_page_config(page_title="MAKASE AI Studio", page_icon="🎬", layout="wide")
 
@@ -41,7 +43,7 @@ def dashboard(store):
         st.dataframe(table(themes[:10]), hide_index=True, width="stretch")
     else:
         st.info("まだ企画はありません。「AI投稿テーマ企画」から10案を作成してください。")
-    st.caption("Phase 1：テーマ企画・承認・制作進捗。Canva制作・TikTok投稿は未接続です。")
+    st.caption("テーマ企画・承認・制作進捗・施設候補管理。Canva制作・TikTok投稿は未接続です。")
 
 
 def planner(store):
@@ -57,9 +59,7 @@ def planner(store):
     if generate:
         try:
             context = PlanningContext(target, focus, brief)
-            generator = OfflineThemeGenerator()
-            drafts = generator.generate(context, store.performance())
-            batch_id = store.save_batch(context, generator.name, drafts)
+            batch_id = generate_and_save(store, context)
             st.session_state["selected_batch"] = batch_id
             flash(f"企画 #{batch_id} に10案を保存しました。下の一覧から承認・修正・却下できます。")
         except ValueError as exc:
@@ -164,13 +164,13 @@ def main():
     st.title("🎬 MAKASE AI Studio")
     st.caption("日本語コンテンツ制作の企画・承認ワークスペース")
     st.sidebar.title("MAKASE")
-    page = st.sidebar.radio("メニュー", ("ダッシュボード", "AI投稿テーマ企画", "投稿制作の進捗管理", "過去の投稿実績"))
-    st.sidebar.caption("Phase 1 · 無料テストモード\n\nデータはこの端末のSQLiteに保存されます。")
+    page = st.sidebar.radio("メニュー", ("ダッシュボード", "AI投稿テーマ企画", "投稿制作の進捗管理", "過去の投稿実績", "施設候補リサーチ"))
+    st.sidebar.caption("Phase 2 · 無料テストモード\n\nデータはこの端末のSQLiteに保存されます。")
     if "notice" in st.session_state:
         st.success(st.session_state.pop("notice"))
     store = Store()
     {"ダッシュボード": dashboard, "AI投稿テーマ企画": planner,
-     "投稿制作の進捗管理": production, "過去の投稿実績": performance}[page](store)
+     "投稿制作の進捗管理": production, "過去の投稿実績": performance, "施設候補リサーチ": research_page}[page](store)
 
 
 if __name__ == "__main__":
