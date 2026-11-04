@@ -4,7 +4,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from studio.generator import CATEGORIES, PlanningContext, ThemeDraft, validate_drafts
@@ -15,6 +15,10 @@ PROGRESS = ("未着手", "構成作成", "素材準備", "編集", "確認待ち
 
 def now():
     return datetime.now(timezone(timedelta(hours=9))).isoformat(timespec="seconds")
+
+
+def today_jst():
+    return datetime.now(timezone(timedelta(hours=9))).date()
 
 
 class ConflictError(ValueError):
@@ -128,7 +132,9 @@ class Store:
     def add_performance(self, title, category, posted_on, views, likes, saves):
         if not title.strip() or len(title) > 150 or category not in CATEGORIES:
             raise ValueError("投稿名（1〜150文字）とジャンルを確認してください。")
-        if any(not isinstance(n, int) or n < 0 for n in (views, likes, saves)):
+        if type(posted_on) is not date or posted_on > today_jst():
+            raise ValueError("投稿日は日本時間の今日以前の日付で入力してください。")
+        if any(type(n) is not int or n < 0 for n in (views, likes, saves)):
             raise ValueError("実績は0以上の整数で入力してください。")
         if likes > views or saves > views:
             raise ValueError("いいね数・保存数はそれぞれ再生数以下で入力してください。")

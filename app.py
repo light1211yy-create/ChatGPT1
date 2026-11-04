@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import streamlit as st
 
 from studio.db import PROGRESS, Store
+from studio.editor_state import Editor, capture_editor_inputs, retained_editor
 from studio.generator import CATEGORIES, PlanningContext
 from studio.planning import generate_and_save
 from studio.research_ui import research_page
@@ -84,12 +85,12 @@ def planner(store):
         with st.expander(f"{index:02d}｜{theme['score']}点｜{theme['title']}｜{theme['status']}", expanded=index == 1):
             st.markdown("**企画理由**")
             st.write(theme["reason"])
-            # Versioned widget keys prevent stale editors overwriting new database values.
-            key = f"{theme['id']}_{theme['version']}"
-            with st.form(f"review_{key}"):
-                title = st.text_input("テーマ名", theme["title"], max_chars=150, key=f"title_{key}")
-                outline = st.text_area("投稿構成", theme["outline"], max_chars=2000, key=f"outline_{key}")
-                note = st.text_area("判断理由・制作メモ", theme["note"], max_chars=1000, key=f"note_{key}")
+            editor = Editor("review", theme, {"title": "テーマ名", "outline": "投稿構成", "note": "メモ", "status": "承認状態"})
+            editor.show_conflict(theme)
+            with st.form(editor.key):
+                title = st.text_input("テーマ名", editor.value("title"), max_chars=150, key=editor.widget_key("title"))
+                outline = st.text_area("投稿構成", editor.value("outline"), max_chars=2000, key=editor.widget_key("outline"))
+                note = st.text_area("判断理由・制作メモ", editor.value("note"), max_chars=1000, key=editor.widget_key("note"))
                 st.caption("編集した内容は、選んだ操作と同時に保存されます。承認を取り消すと進捗は未着手に戻ります。")
                 cols = st.columns(3)
                 approve = cols[0].form_submit_button("承認", type="primary")
@@ -98,7 +99,8 @@ def planner(store):
             if approve or revise or reject:
                 status = "承認" if approve else "修正済み" if revise else "却下"
                 try:
-                    store.review(theme["id"], theme["version"], title, outline, note, status)
+                    store.review(theme["id"], editor.version, title, outline, note, status)
+                    editor.reset()
                     flash(f"テーマ #{theme['id']} を「{status}」として保存しました。")
                 except ValueError as exc:
                     st.error(str(exc))
@@ -111,24 +113,34 @@ def planner(store):
 def production(store):
     st.header("投稿制作の進捗管理")
     st.write("承認したテーマの構成作成から投稿完了までを管理します。自動投稿は行いません。")
-    approved = [t for t in store.themes() if t["status"] == "承認"]
+    all_themes = store.themes()
+    approved = [t for t in all_themes if t["status"] == "承認"]
+    for t in all_themes:
+        if t["status"] != "承認" and retained_editor("progress", t["id"]):
+            st.warning(f"テーマ #{t['id']} の承認が取り消され、進捗は保存できません。編集内容は保持しています。再承認後に最新データと比較してください。")
     if not approved:
         st.info("承認されたテーマはありません。テーマ企画の一覧で承認してください。")
         return
     selected = st.selectbox("進捗で絞り込み", ("すべて",) + PROGRESS)
     visible = [t for t in approved if selected == "すべて" or t["progress"] == selected]
+    for t in approved:
+        old = retained_editor("progress", t["id"])
+        if t not in visible and old and old["record"] and old["record"]["version"] != t["version"]:
+            st.warning(f"編集中のテーマ #{t['id']} が別の進捗へ更新されました。編集内容は保持しています。絞り込みを「すべて」にして比較してください。")
     st.dataframe(table(visible), hide_index=True, width="stretch")
     for theme in visible:
-        key = f"progress_{theme['id']}_{theme['version']}"
         with st.expander(f"#{theme['id']} {theme['title']}｜{theme['progress']}", expanded=True):
             st.write(theme["outline"])
-            with st.form(key):
-                progress = st.selectbox("制作進捗", PROGRESS, index=PROGRESS.index(theme["progress"]), key=f"stage_{key}")
-                note = st.text_area("制作メモ", theme["note"], max_chars=1000, key=f"memo_{key}")
+            editor = Editor("progress", theme, {"progress": "制作進捗", "note": "制作メモ", "status": "承認状態"})
+            editor.show_conflict(theme)
+            with st.form(editor.key):
+                progress = st.selectbox("制作進捗", PROGRESS, index=PROGRESS.index(editor.value("progress")), key=editor.widget_key("progress"))
+                note = st.text_area("制作メモ", editor.value("note"), max_chars=1000, key=editor.widget_key("note"))
                 submitted = st.form_submit_button("進捗を保存")
             if submitted:
                 try:
-                    store.set_progress(theme["id"], theme["version"], progress, note)
+                    store.set_progress(theme["id"], editor.version, progress, note)
+                    editor.reset()
                     flash("制作進捗を保存しました。")
                 except ValueError as exc:
                     st.error(str(exc))
@@ -161,6 +173,7 @@ def performance(store):
 
 
 def main():
+    capture_editor_inputs()
     st.title("🎬 MAKASE AI Studio")
     st.caption("日本語コンテンツ制作の企画・承認ワークスペース")
     st.sidebar.title("MAKASE")
