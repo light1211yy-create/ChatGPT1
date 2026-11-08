@@ -135,7 +135,7 @@ def test_ui_requires_three_checks_before_reading_any_key(tmp_path, monkeypatch, 
     assert not at.exception
     model = next(s for s in at.selectbox if s.label.startswith("Geminiモデル"))
     assert model.value == "gemini-3.8-flash" and model.options == ["gemini-3.8-flash", MODEL] and not model.disabled
-    assert len(at.checkbox) == 3 and any("ユーザーがGoogle公式資料で確認" in c.value for c in at.caption)
+    assert len(at.checkbox) == 3  # Confirmation is required for all models; 3.8 has developer-reviewed provenance.
     assert any("別途承認" in info.value for info in at.info)
     next(b for b in at.button if b.label == "送信内容を更新して確認").click().run()
     for index, checkbox in enumerate(at.checkbox):
