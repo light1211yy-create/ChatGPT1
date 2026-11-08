@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Protocol, Sequence
 import json
+import re
+import unicodedata
 from collections.abc import Callable
 
 CATEGORIES = ("暮らし", "グルメ", "おでかけ", "仕事・学び", "美容・健康")
@@ -45,6 +47,10 @@ class ThemeGenerator(Protocol):
     name: str
 
     def generate(self, context: PlanningContext, history: Sequence[dict]) -> list[ThemeDraft]: ...
+
+
+def normalize_title(title):
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", title).casefold())
 
 
 def validate_drafts(drafts):

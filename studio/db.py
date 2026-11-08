@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from studio.generator import CATEGORIES, PlanningContext, ThemeDraft, validate_drafts
+from studio.generator import CATEGORIES, PlanningContext, ThemeDraft, normalize_title, validate_drafts
 
 STATUSES = ("未承認", "修正済み", "承認", "却下")
 PROGRESS = ("未着手", "構成作成", "素材準備", "編集", "確認待ち", "完成", "投稿済み")
@@ -69,13 +69,18 @@ class Store:
         finally:
             conn.close()
 
-    def save_batch(self, context: PlanningContext, provider: str, drafts: list[ThemeDraft]):
+    def save_batch(self, context: PlanningContext, provider: str, drafts: list[ThemeDraft], *, reject_existing_titles=False):
         validate_drafts(drafts)
         for draft in drafts:
             self.validate_text(draft.title, draft.outline, "")
             if draft.category not in CATEGORIES or not 0 <= draft.score <= 100:
                 raise ValueError("テーマのジャンルまたはスコアが不正です。")
         with self.connect() as conn:
+            if reject_existing_titles:
+                conn.execute("BEGIN IMMEDIATE")
+                existing = {normalize_title(r[0]) for r in conn.execute("SELECT title FROM themes")}
+                if existing.intersection(normalize_title(d.title) for d in drafts):
+                    raise ValueError("既存テーマと重複しています。企画は保存していません。")
             batch_id = conn.execute("INSERT INTO batches(created_at, context, provider) VALUES(?,?,?)",
                                     (now(), json.dumps(asdict(context), ensure_ascii=False, default=str), provider)).lastrowid
             conn.executemany("""INSERT INTO themes(batch_id,title,category,score,reason,outline,updated_at)
@@ -92,6 +97,10 @@ class Store:
             query = "SELECT * FROM themes"
             return [dict(r) for r in conn.execute(query + (" WHERE batch_id=?" if batch_id is not None else "") + " ORDER BY id DESC",
                                                   (batch_id,) if batch_id is not None else ())]
+
+    def theme_titles(self):
+        with self.connect() as conn:
+            return [row[0] for row in conn.execute("SELECT title FROM themes ORDER BY id DESC")]
 
     @staticmethod
     def validate_text(title, outline, note):

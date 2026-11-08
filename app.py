@@ -7,6 +7,8 @@ import streamlit as st
 from studio.db import PROGRESS, Store
 from studio.editor_state import Editor, capture_editor_inputs, retained_editor
 from studio.generator import CATEGORIES, PlanningContext
+from studio.gemini import GeminiConsent, GeminiThemeGenerator, build_payload
+from studio.gemini_ui import GEMINI_MODE, choose_mode, read_api_key
 from studio.planning import generate_and_save
 from studio.research_ui import research_page
 
@@ -49,21 +51,47 @@ def dashboard(store):
 
 def planner(store):
     st.header("AI投稿テーマ企画")
-    st.info("無料テストモード：AIモデルには接続していません。ルールベースで10案を作成し、追加課金や外部へのデータ送信は発生しません。")
+    mode, model = choose_mode()
+    if "_gemini_error" in st.session_state:
+        st.error(st.session_state.pop("_gemini_error"))
     st.write("対象：日本在住18〜34歳。季節・月ごとのイベント・過去の投稿実績を企画の参考にします。")
+    epoch = st.session_state.get("_gemini_consent_epoch", 0)
     with st.form("planning"):
         target = st.date_input("企画対象日", today())
-        focus = st.selectbox("重点ジャンル", CATEGORIES)
+        focus = st.selectbox("重点ジャンル", CATEGORIES, index=CATEGORIES.index("おでかけ") if mode == GEMINI_MODE else 0)
         brief = st.text_area("企画メモ（任意）", max_chars=500, placeholder="例：顔出しなし、予算1,000円以内")
-        st.caption("テストモードでは企画メモを条件として添付します。内容への自動反映はしません。")
+        if mode == GEMINI_MODE:
+            with st.expander("Googleへ送信する内容を確認"):
+                try:
+                    st.json(build_payload(PlanningContext(target, focus, brief), store.performance(), store.theme_titles()))
+                except ValueError as exc:
+                    st.error(str(exc))
+            st.form_submit_button("送信内容を更新して確認")
+            st.caption("フォーム内で変更した値は、送信操作時にサーバーで再検証します。生成はHTTPタイムアウト30秒・自動再試行なしの1リクエストです。")
+            free_confirmed = st.checkbox("公式料金表で選択モデルの無料枠を確認しました", key=f"gemini_free_{model}_{epoch}")
+            billing_disabled = st.checkbox("キーのプロジェクトはFree tierで、Cloud Billingが無効なことを確認しました", key=f"gemini_billing_{model}_{epoch}")
+            approved = st.checkbox("企画メモ・テーマ名に個人情報や秘密情報がないことを確認し、今回1回のGoogleへの外部送信を承認します", key=f"gemini_send_{model}_{epoch}")
+        else:
+            st.caption("テストモードでは企画メモを条件として添付します。内容への自動反映はしません。")
         generate = st.form_submit_button("テーマ10案を作成", type="primary")
     if generate:
+        if mode == GEMINI_MODE:
+            # Consent belongs to this submission only, also on errors/429.
+            st.session_state["_gemini_consent_epoch"] = epoch + 1
         try:
             context = PlanningContext(target, focus, brief)
-            batch_id = generate_and_save(store, context)
+            if mode == GEMINI_MODE:
+                provider = GeminiThemeGenerator(model=model, api_key=read_api_key(), past_titles=store.theme_titles(),
+                    consent=GeminiConsent(free_confirmed, billing_disabled, approved))
+                batch_id = generate_and_save(store, context, provider)
+            else:
+                batch_id = generate_and_save(store, context)
             st.session_state["selected_batch"] = batch_id
             flash(f"企画 #{batch_id} に10案を保存しました。下の一覧から承認・修正・却下できます。")
         except ValueError as exc:
+            if mode == GEMINI_MODE:
+                st.session_state["_gemini_error"] = str(exc)
+                st.rerun()
             st.error(str(exc))
     batches = store.batches()
     if not batches:
@@ -76,8 +104,13 @@ def planner(store):
     if st.session_state.get("selected_batch") not in ids:
         st.session_state["selected_batch"] = ids[0]
     batch_id = st.selectbox("企画履歴", ids, format_func=labels.get, key="selected_batch")
-    st.caption(next(b["provider"] for b in batches if b["id"] == batch_id))
-    st.caption("スコア（0〜100）：基本65点＋重点ジャンル10点＋過去実績の反応率に応じた最大20点。再生数の予測ではありません。イベントは固定の月別候補で、最新の開催情報は制作時に確認してください。")
+    selected_batch = next(b for b in batches if b["id"] == batch_id)
+    st.caption(selected_batch["provider"])
+    st.caption(f"生成日時（日本時間）：{selected_batch['created_at']}")
+    if selected_batch["provider"].startswith("Gemini AIモード"):
+        st.caption("スコアはGeminiによる参考評価です。最新トレンド・施設・料金・イベント開催の情報は未確認で、再生数・成功率の予測ではありません。公開前に出典を確認してください。")
+    else:
+        st.caption("スコア（0〜100）：基本65点＋重点ジャンル10点＋過去実績の反応率に応じた最大20点。再生数の予測ではありません。イベントは固定の月別候補で、最新の開催情報は制作時に確認してください。")
     themes = sorted(store.themes(batch_id), key=lambda t: (-t["score"], t["id"]))
     st.subheader(f"投稿テーマ {len(themes)}案")
     st.dataframe(table(themes), hide_index=True, width="stretch")
@@ -178,7 +211,7 @@ def main():
     st.caption("日本語コンテンツ制作の企画・承認ワークスペース")
     st.sidebar.title("MAKASE")
     page = st.sidebar.radio("メニュー", ("ダッシュボード", "AI投稿テーマ企画", "投稿制作の進捗管理", "過去の投稿実績", "施設候補リサーチ"))
-    st.sidebar.caption("Phase 2 · 無料テストモード\n\nデータはこの端末のSQLiteに保存されます。")
+    st.sidebar.caption("MAKASE AI Studio\n\n保存先はこの端末のSQLiteです。Gemini選択時は承認した企画情報をGoogleへ送信します。")
     if "notice" in st.session_state:
         st.success(st.session_state.pop("notice"))
     store = Store()
