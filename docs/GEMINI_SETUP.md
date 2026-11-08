@@ -10,7 +10,7 @@ API通信・実キーの読み出しは行っていません。従来の `google
 この追記より前の「3.5が唯一」「3.5が最新」という記述は旧版の履歴です。最新の構成は本節と `studio/gemini_models.py` を優先してください。
 
 
-更新日：2026-11-09（日本時間）。今回の基準コミット11b46c6。ユーザーが確認したGoogle公式情報を根拠に3.5を登録した。Codexによる直接取得・実API確認ではない。初回実API試験は別途承認待ちで、今回の開発では通信・実キーの読み出し／表示／送信を行わない。
+更新日：2026-11-09（日本時間）。Gemini 3.8 Flashを既定モデルとして登録し、3.5 Flash-Liteも手動選択できるようにした。Codexによる直接取得・実API確認ではない。初回実API試験は別途承認待ちで、今回の開発では通信・実キーの読み出し／表示／送信を行わない。
 
 ## 1. 無料枠の確認状況とモデル
 
@@ -18,12 +18,12 @@ API通信・実キーの読み出しは行っていません。従来の `google
 
 | 候補モデル | アプリでの扱い | 現在の料金確認 |
 | --- | --- | --- |
-| `gemini-3.5-flash-lite` | Geminiモードの既定・唯一の選択肢 | ユーザーが安定版ID、Standard Free tierテキスト入出力、JSON出力、Thinking各levelを公式確認 |
+| `gemini-3.8-flash` | Geminiモードの既定、Thinking MEDIUM | Google公式モデル仕様・Standard Free tierのテキスト入出力・移行ガイドを確認。実API未検証 |\n| `gemini-3.5-flash-lite` | 手動選択可能、Thinking MINIMAL | 公式Free tier、Structured Output対応が確認された従来モデル。実API未検証 |
 | 旧`gemini-2.5-flash-lite`／`gemini-2.5-flash` | 現在は選択・送信不可 | 現在の提供状況・新規Free tier資格・互換性を未確認 |
 
 根拠は[モデル仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[料金表](https://ai.google.dev/gemini-api/docs/pricing)、[Thinking仕様](https://ai.google.dev/gemini-api/docs/generate-content/thinking)。前回のCodex調査は環境プロキシで403だったが、今回ユーザーが公式確認情報を提供したため登録した。Codexが直接ページを取得できたとは報告しない。本人はFree tier・請求先未設定を確認済みで、キーと対象プロジェクトの対応は初回通信前に再確認する。実キーやsecrets.tomlは今回開いていない。
 
-SDKは`google-genai==3.0.0`を維持する。Thinkingは`ThinkingConfig(thinking_level=ThinkingLevel.MINIMAL)`相当を使用し、`thinking_budget`は設定・送信しない。対応する型・構造化JSON設定・実際にシリアライズされるリクエストをMockTransportで検査する。`max_output_tokens=8192`はアプリ側の出力上限であり、公式最大値を確認したという意味ではない。SDK版違い・未登録モデル・不正な確認記録は送信前に拒否する。実サーバーの互換性・品質・利用枠は初回試験まで未検証。
+SDKは`google-genai==3.0.0`を維持する。Thinkingは3.8で`ThinkingConfig(thinking_level=ThinkingLevel.MEDIUM)`相当を使用し、3.5-Liteのみ`MINIMAL`を使用する。`thinking_budget`、`candidate_count`は設定・送信しない。対応する型・構造化JSON設定・実際にシリアライズされるリクエストをMockTransportで検査する。`max_output_tokens=8192`はアプリ側の出力上限であり、公式最大値を確認したという意味ではない。SDK版違い・未登録モデル・不正な確認記録は送信前に拒否する。実サーバーの互換性・品質・利用枠は初回試験まで未検証。
 
 Google AI Pro、GeminiアプリのPro、Antigravityの利用と、Gemini Developer APIの課金は別。契約を無料APIの利用権と扱わない。
 
@@ -104,7 +104,7 @@ Remove-Variable makaseGeminiKey
 **モデルは選択可能だが、初回実API試験は別途承認待ち。** 以下は将来その承認後に本人が行う手順。今回の開発許可を実通信の承認として流用しない。3つ目のチェックでも「初回実APIテストは別途承認済み」を確認する。承認前はチェック・送信しない。
 
 1. 起動直後は無料テストモードであることを確認する。ここではAPIへ通信しない。
-2. 「AI投稿テーマ企画」でGemini AIモードを明示選択する。既定の`gemini-3.5-flash-lite`と、ユーザー確認情報を根拠とする説明を確認する。ここまでキーは読み取らない。
+2. 「AI投稿テーマ企画」でGemini AIモードを明示選択する。既定の`gemini-3.8-flash`（MEDIUM）と、公式モデル仕様・料金表を根拠とする説明を確認する。ここまでキーは読み取らない。
 3. 企画対象日・重点ジャンル・メモを入力する。「送信内容を更新して確認」で、実際に外部へ送る内容を確認する。フォームの値をその後変えた場合は、もう一度確認する。
 4. **実際に設定されたAPIキーが、確認済みのFree tier・請求先未設定プロジェクトに対応することをGoogle AI Studioで本人が再確認する。** キーの値をチャットや画面に表示しない。モデルの無料枠、Billing無効とメモ・テーマ名に秘密情報／個人情報がないことも確認する。
 5. 3つの確認・承認をチェックし、「テーマ10案を作成」を**1回だけ**押す。開発者がクラウドで試験する場合は、この操作とは別に本人が無料枠・認証設定を確認して明示承認し、キーは環境設定の秘密欄等で安全に設定する。キーをチャットへ送らない。
