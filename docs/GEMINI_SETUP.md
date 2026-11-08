@@ -1,4 +1,14 @@
 # Geminiテーマ生成：導入・課金条件・検証状況
+## Gemini 3.8 Flash への更新（2026-11-09、ブランチ検証中）
+
+モデルIDは `gemini-3.8-flash`、Gemini AIモードの既定思考設定は `thinking_level=MEDIUM` です。`thinking_budget` と `candidate_count` は送信しません。従来の `gemini-3.5-flash-lite` はユーザーが明示選択できる候補として残し、自動フォールバックは行いません。
+
+Google公式の[3.8 Flash仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)、[料金表](https://ai.google.dev/gemini-api/docs/pricing)、[移行ガイド](https://ai.google.dev/gemini-api/docs/latest-model)を参照。料金表ではStandardのテキスト入力・出力にFree tier枠がありますが、実際のキー／プロジェクトで利用できること、残り枠、請求先無効は別途本人が確認してください。
+
+API通信・実キーの読み出しは行っていません。従来の `google-genai==3.0.0` を維持していますが、Gemini 3.8本体との互換性や実際の生成成功は未確認です。初回送信にはユーザーの別途明示承認が必要です。既存SQLite・`data`・`.streamlit/secrets.toml` を削除、上書きしないでください。
+
+この追記より前の「3.5が唯一」「3.5が最新」という記述は旧版の履歴です。最新の構成は本節と `studio/gemini_models.py` を優先してください。
+
 
 更新日：2026-11-09（日本時間）。今回の基準コミット11b46c6。ユーザーが確認したGoogle公式情報を根拠に3.5を登録した。Codexによる直接取得・実API確認ではない。初回実API試験は別途承認待ちで、今回の開発では通信・実キーの読み出し／表示／送信を行わない。
 
