@@ -13,6 +13,7 @@ import re
 
 from studio.generator import CATEGORIES, EVENTS, PlanningContext, ThemeDraft, normalize_title, validate_drafts
 from studio.gemini_models import GeminiError, SDK_VERSION, model_profile
+from studio.key_config import load_api_key, normalize_key
 
 PRICING_URL = "https://ai.google.dev/gemini-api/docs/pricing"
 OFFICIAL_ENDPOINT = "https://generativelanguage.googleapis.com"
@@ -62,7 +63,7 @@ class GeminiConsent:
 def reject_sensitive_text(value):
     # Best-effort guard, not an entity/privacy classifier. The user also reviews
     # the exact payload and must not enter personal data into briefs/titles.
-    patterns = (r"AIza[\w-]{15,}", r"(?:sk-proj-|ghp_|github_pat_)[\w-]{15,}",
+    patterns = (r"AIza[\w-]{15,}", r"(?<![A-Za-z0-9_])AQ\.[A-Za-z0-9_.-]+", r"(?:sk-proj-|ghp_|github_pat_)[\w-]{15,}",
                 r"-----BEGIN .*PRIVATE KEY-----", r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",
                 r"https?://[^\s/@:]+:[^\s/@]+@", r"\b(?:0\d{1,4}-\d{1,4}-\d{3,4})\b",
                 r"(?i)(?:api[_ -]?key|password|access[_ -]?token)\s*[:=]")
@@ -172,8 +173,8 @@ class GeminiThemeGenerator:
         if model_profile(self.model) != self.profile:
             raise GeminiError("モデル設定が変更されました。送信せず停止しました。設定と送信内容を再確認してください。")
         payload = build_payload(context, history, self.past_titles)
-        api_key = self._api_key if self._api_key is not None else os.environ.get("GEMINI_API_KEY", "")
-        if not isinstance(api_key, str) or not api_key.strip():
+        api_key = normalize_key(self._api_key) if self._api_key is not None else load_api_key()
+        if not api_key:
             raise GeminiError("GEMINI_API_KEYが未設定です。環境変数またはGit管理外の秘密設定に登録してください。")
         genai, errors, types, httpx2 = load_sdk()
         thinking = None

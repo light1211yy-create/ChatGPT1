@@ -1,4 +1,8 @@
 # MAKASE AI Studio — Phase 2（施設候補管理）
+
+APIキーが「未設定」と表示される場合は[読み込み不具合の調査・修正報告](docs/GEMINI_KEY_FIX_REPORT.md)を参照してください。修正版ではプロジェクトの`.streamlit/secrets.toml`を優先し、ファイルがない場合だけ環境変数を使います。3.8 Flash／MEDIUM、3.5-Liteの手動選択、SDK3.0.0は変更していません。
+
+本修正はmain db9ef4eの既存257件に46件を追加し、Linux・Python 3.12で303件成功・失敗0件。Windows本人環境の設定状態・更新後の実機動作・AQ形式の実サービスでの認証受理は未検証で、実API通信は行っていません。
 ## Gemini 3.8 Flash への更新（2026-11-09、ブランチ検証中）
 
 モデルIDは `gemini-3.8-flash`、Gemini AIモードの既定思考設定は `thinking_level=MEDIUM` です。`thinking_budget` と `candidate_count` は送信しません。従来の `gemini-3.5-flash-lite` はユーザーが明示選択できる候補として残し、自動フォールバックは行いません。
@@ -104,7 +108,7 @@ python3 -m venv .venv
 **Gemini AIモードの既定は`gemini-3.8-flash`（MEDIUM）で、`gemini-3.5-flash-lite`（MINIMAL）も手動選択できます。** 正式ID、Standard API Free tierのテキスト入出力、Structured outputs、Thinking各levelは、2026-11-09にユーザーがGoogle公式資料で確認した情報を根拠としています。Codexが資料を直接取得した／実APIに接続したという意味ではありません。[確認根拠](docs/GEMINI_MODEL_REVIEW.md)・[導入手順](docs/GEMINI_SETUP.md)を参照してください。アプリ起動時は従来の無料テストモードです。
 
 - 今回は依存変更なし。`google-genai==3.0.0`を維持します。既にこの版ならアプリ停止・バックアップ後にGitHub DesktopのFetch／Pullでソースを更新し、既存の`start_windows.bat`で起動できます。未導入・版違いなら `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を実行します。DB初期化は不要です。
-- キーは`GEMINI_API_KEY`環境変数か、Git管理外の`.streamlit/secrets.toml`のトップレベルへ設定します。画面・チャット・GitHubへ貼り付けません。`.env`の自動読み込みは行いません。
+- キーはapp.pyと同じ階層のGit管理外`.streamlit/secrets.toml`のトップレベルへ設定します。このファイルがない場合だけ`GEMINI_API_KEY`環境変数を使います。ファイルが不正なら別キーへ自動切替せず理由を表示します。AQ形式・従来形式を先頭文字や長さで制限しません。画面・チャット・GitHubへ貼り付けず、`.env`・ホーム配下の秘密ファイルは自動で取り込みません。
 - Google AI Pro／AntigravityとAPI課金は別です。3つのチェック（モデルの無料枠、キーが確認済みFree tierプロジェクトに対応してBilling無効、今回1回の外部送信承認）を維持します。初回実API試験は開発とは別の承認が必要です。キーとプロジェクトの対応は初回通信前に本人が再確認します。アプリは課金状態を保証できません。
 - 画面表示・モード選択ではキーを読み取りません。3つのチェックを検証してから生成時に読み取ります。Thinkingは3.8ではSDKの`MEDIUM`、3.5-Liteでは`MINIMAL`を使用し、`thinking_budget`と`candidate_count`は送信しません。出力8192トークンはアプリ側の上限です。1リクエスト・HTTPタイムアウト30秒で、自動再試行・有料モデルや旧2.5への切り替え・Web検索／Groundingはありません。
 - モデル名・生成日時を表示し、従来どおり承認・修正・却下できます。実績は集計だけを送り、過去テーマとの重複を保存前に検証します。AIの案には最新Web・施設情報が未確認であることを表示します。
@@ -131,6 +135,12 @@ python3 -m venv .venv
 - 無料テストモードにはAPIキーは不要です。Geminiのキーを設定する場合も、`.env`とその派生、Streamlit秘密設定、DB、鍵ファイル、仮想環境、キャッシュはGit除外対象です。独自の名前で作った秘密ファイルまで自動で保護する保証はないため、コミット前には送信ファイル一覧も確認してください。
 
 ## テスト
+
+APIキー診断は、更新後にapp.pyのあるフォルダで次を実行します。API・SDK・DBには接続せず、キー本文・一部・長さ・ハッシュを出力しません。本人PC内で設定を確認し、結果を共有する場合もこの状態表示だけにしてください。
+
+```powershell
+.\.venv\Scripts\python.exe -m studio.key_config
+```
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt

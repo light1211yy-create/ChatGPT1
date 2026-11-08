@@ -3,7 +3,13 @@ from datetime import date
 
 import pytest
 
-from studio import gemini_models
+from studio import gemini_models, key_config
+
+
+@pytest.fixture(autouse=True)
+def isolated_key_config(tmp_path, monkeypatch):
+    """Never let a test read the real project's credential file."""
+    monkeypatch.setattr(key_config, "PROJECT_ROOT", tmp_path)
 
 
 @pytest.fixture

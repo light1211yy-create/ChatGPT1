@@ -1,25 +1,16 @@
 """Explicit Gemini opt-in and one-request consent, with no stored API keys."""
-import os
-
 import streamlit as st
-from streamlit.errors import StreamlitSecretNotFoundError
 
 from studio.gemini import PRICING_URL
 from studio.gemini_models import DEFAULT_MODEL_ID, NO_VERIFIED_MODELS, available_models, model_profile
+from studio.key_config import load_api_key
 
 GEMINI_MODE = "Gemini AIモード"
 TEST_MODE = "無料テストモード（従来方式）"
 
 
 def read_api_key():
-    key = os.environ.get("GEMINI_API_KEY", "")
-    if key:
-        return key
-    try:
-        key = st.secrets.get("GEMINI_API_KEY", "")
-    except (StreamlitSecretNotFoundError, FileNotFoundError, KeyError):
-        return ""
-    return key if isinstance(key, str) else ""
+    return load_api_key()
 
 
 def choose_mode():

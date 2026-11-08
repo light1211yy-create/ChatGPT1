@@ -1,4 +1,14 @@
 # Geminiテーマ生成：導入・課金条件・検証状況
+
+## APIキー読み込み修正（基準main db9ef4e）
+
+キーの「未設定」エラーはSDK認証の前段で発生する。AQ形式が原因とは決めつけない。修正と安全な診断は[GEMINI_KEY_FIX_REPORT.md](GEMINI_KEY_FIX_REPORT.md)を参照。実キー・本人の秘密ファイルを開かず、ダミーキーだけで検証した。3.8 Flash／MEDIUM、3.5-Lite／MINIMAL、SDK3.0.0は維持する。
+
+読み込み先はapp.pyと同じプロジェクトの`.streamlit/secrets.toml`に固定し、存在すれば優先する。ファイルがない場合だけ`GEMINI_API_KEY`環境変数を使う。構文・型・空欄・読取権限のエラー時は安全な日本語メッセージで停止し、別キーに切り替えない。ホーム配下や別作業ディレクトリの秘密設定は使用しない。Streamlitの自動読込は`.streamlit/config.toml`の`secrets.files=[]`で無効化し、承認前の読み取りやキャッシュ由来の環境変数書き換えを防ぐ。
+
+更新後、app.pyのあるフォルダで`.\.venv\Scripts\python.exe -m studio.key_config`を実行すると、ファイル・設定項目・環境変数の状態、採用する設定元だけを確認できる。キー本文・一部・長さ・ハッシュは表示せず、API・SDK・DBも使用しない。今回はCodexから本人PCの状態を確認できないため、実機の根本原因の確定にはこの本人確認が必要。
+
+本修正の結果は既存257件＋追加46件＝303件成功・失敗／スキップ0件。実サーバーの5画面・保存・再起動と、ブラウザでの構文エラーの安全な表示、ログ・画面への非漏えい、従来モードへの復帰も確認した。テストは全て一時ファイル・DB・架空のキー・モックを使う。以下の以前の254件等の記録は各開発時点の履歴として扱う。
 ## Gemini 3.8 Flash への更新（2026-11-09、ブランチ検証中）
 
 モデルIDは `gemini-3.8-flash`、Gemini AIモードの既定思考設定は `thinking_level=MEDIUM` です。`thinking_budget` と `candidate_count` は送信しません。従来の `gemini-3.5-flash-lite` はユーザーが明示選択できる候補として残し、自動フォールバックは行いません。
@@ -97,7 +107,7 @@ Remove-Variable makaseGeminiKey
 .\start_windows.bat
 ```
 
-環境変数の値を表示しない。ExplorerのダブルクリックはこのPowerShellの変数を引き継がない場合がある。終了後は必要に応じて`Remove-Item Env:GEMINI_API_KEY`でそのセッションの変数を消す。環境変数と秘密設定の両方にあれば環境変数を優先する。
+環境変数の値を表示しない。ExplorerのダブルクリックはこのPowerShellの変数を引き継がない場合がある。終了後は必要に応じて`Remove-Item Env:GEMINI_API_KEY`でそのセッションの変数を消す。修正版はプロジェクトのsecrets.tomlを優先するため、環境変数方式を使う場合はファイルが存在しないことを本人が確認する。既存ファイルを自動で削除・初期化しない。
 
 ## 5. 実AIで10テーマを生成する方法（確認・承認後に1回）
 
