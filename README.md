@@ -1,4 +1,14 @@
 # MAKASE AI Studio — Phase 2（施設候補管理）
+## Gemini 3.8 Flash への更新（2026-11-09、ブランチ検証中）
+
+モデルIDは `gemini-3.8-flash`、Gemini AIモードの既定思考設定は `thinking_level=MEDIUM` です。`thinking_budget` と `candidate_count` は送信しません。従来の `gemini-3.5-flash-lite` はユーザーが明示選択できる候補として残し、自動フォールバックは行いません。
+
+Google公式の[3.8 Flash仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)、[料金表](https://ai.google.dev/gemini-api/docs/pricing)、[移行ガイド](https://ai.google.dev/gemini-api/docs/latest-model)を参照。料金表ではStandardのテキスト入力・出力にFree tier枠がありますが、実際のキー／プロジェクトで利用できること、残り枠、請求先無効は別途本人が確認してください。
+
+API通信・実キーの読み出しは行っていません。従来の `google-genai==3.0.0` を維持していますが、Gemini 3.8本体との互換性や実際の生成成功は未確認です。初回送信にはユーザーの別途明示承認が必要です。既存SQLite・`data`・`.streamlit/secrets.toml` を削除、上書きしないでください。
+
+この追記より前の「3.5が唯一」「3.5が最新」という記述は旧版の履歴です。最新の構成は本節と `studio/gemini_models.py` を優先してください。
+
 
 日本在住18〜34歳向けの投稿テーマを企画し、承認して制作進捗・施設候補を管理する日本語Streamlitアプリです。**Python 3.12（64bit）を推奨**します。Windows用バッチは3.12を使用します。開発時のテスト環境はLinux・Python 3.12です。Phase 1のWindows起動成功はユーザーから報告されていますが、このPhase 2更新版のWindows実機検証は未実施です。SQLiteはPython標準付属です。
 
