@@ -41,6 +41,18 @@ Google AI Pro、GeminiアプリのPro、Antigravityの利用と、Gemini Develop
 
 追加の直接依存は公式SDK `google-genai==3.0.0`。その依存として認証・HTTP・Pydantic等のパッケージもインストールされる。Python 3.12／64bitを使用する。TLS証明書検証を無効にしない。`start_windows.bat`・DBスキーマは変更していないため、再作成やDB初期化は不要。
 
+### `cannot import name 'genai' from 'google'`が出た場合
+
+起動に使った仮想環境で`google-genai`を読み込めない状態。ソースのPull／ZIP更新だけでは既存`.venv`の依存は更新されない。アプリを停止し、`app.py`と同じフォルダの`setup_windows.bat`を再実行するか、上記の`.venv`を明示したpipコマンドを実行する。`google`や旧SDKの`google-generativeai`を代わりにインストールしない。`data`や`.venv`の削除は不要。
+
+同じフォルダで次を実行し、API通信せずにインストールを確認できる。
+
+```powershell
+.\.venv\Scripts\python.exe -c "from google import genai; from importlib.metadata import version; print(version('google-genai'))"
+```
+
+SDKはGemini生成時だけ読み込む。未導入や依存の読み込み失敗時も、ダッシュボードや従来の無料テストモードは動作し、Gemini生成時に日本語のセットアップ案内を表示して保存せず停止する。Windows実機のエラー解消は本人のPCで確認が必要。
+
 ## 4. APIキーを安全に設定する
 
 キーをチャット・GitHub・画面の企画メモへ貼り付けない。アプリは`GEMINI_API_KEY`だけを読み、別プロジェクトの可能性がある`GOOGLE_API_KEY`へはフォールバックしない。画面からキーを入力・表示・保存する機能はない。
@@ -107,7 +119,7 @@ Remove-Variable makaseGeminiKey
 .\.venv\Scripts\python.exe -m pytest -q tests qa\test_phase12_qa.py
 ```
 
-既存140件を保持し、Gemini関連56件を追加した。全196件がLinux・Python 3.12で成功。公式SDKをMockTransportで動かす試験と、Streamlitのモッククライアントによる画面試験を含む。いずれも実Google APIへは通信しない。
+既存140件とGemini関連56件を保持し、SDK未導入の回帰テスト4件を追加した。全200件がLinux・Python 3.12で成功。公式SDKをMockTransportで動かす試験、Streamlitのモッククライアントによる画面試験、別プロセスでSDK本体・型定義・HTTP依存を読み込み不可にした試験を含む。いずれも実Google APIへは通信しない。
 
 確認内容：キー未設定、無料枠／Billing／送信承認の不足、不許可モデル、401/403、429、タイムアウト、その他エラー、不正JSON・件数・重複、途中失敗・無保存、同時保存時の重複再検査、モード切替、モデルと日時の記録、生成案の承認・修正・却下、従来モードの継続。
 

@@ -10,10 +10,6 @@ import json
 import os
 import re
 
-from google import genai
-from google.genai import errors, types
-import httpx2
-
 from studio.generator import CATEGORIES, EVENTS, PlanningContext, ThemeDraft, normalize_title, validate_drafts
 
 # Candidates, NOT a claim of currently verified free eligibility. The official
@@ -34,6 +30,20 @@ HOLIDAY_HINTS = {
 
 class GeminiError(ValueError):
     """Only safe Japanese messages may cross the UI boundary."""
+
+
+def load_sdk():
+    """Keep local features usable before Gemini dependencies are installed."""
+    try:
+        from google import genai
+        from google.genai import errors, types
+        import httpx2
+    except ImportError:
+        raise GeminiError(
+            "Gemini用SDKを読み込めません。アプリを停止し、app.pyと同じフォルダの"
+            "setup_windows.batを再実行してください。無料テストモードは引き続き利用できます。"
+        ) from None
+    return genai, errors, types, httpx2
 
 
 @dataclass(frozen=True)
@@ -164,6 +174,7 @@ class GeminiThemeGenerator:
             raise GeminiError("GEMINI_API_KEYが未設定です。環境変数またはGit管理外の秘密設定に登録してください。")
         self.consent.validate()
         payload = build_payload(context, history, self.past_titles)
+        genai, errors, types, httpx2 = load_sdk()
         prompt = ("あなたはマカセの日本語TikTok企画担当です。指定JSONだけで重複のない10テーマを返してください。"
                   "ホテル・旅行はおでかけ、レストランはグルメに対応させてください。"
                   "写真映え・季節需要・視聴者属性・過去実績・過去テーマ・メモを考慮し、ホテル・旅行・レストランを優先。"
