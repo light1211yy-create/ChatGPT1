@@ -158,7 +158,7 @@ class GeminiThemeGenerator:
     def __init__(self, *, model=None, api_key=None, consent=None, past_titles=()):
         self.profile = model_profile(model)
         self.model = self.profile.model_id
-        self._api_key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
+        self._api_key = api_key  # Defer environment lookup until explicit consent.
         self.consent = consent or GeminiConsent()
         self.past_titles = tuple(past_titles)
         self.model_version = self.model
@@ -168,12 +168,13 @@ class GeminiThemeGenerator:
         return f"Gemini AIモード / {self.model_version} / {PROMPT_VERSION}"
 
     def generate(self, context, history):
-        if not isinstance(self._api_key, str) or not self._api_key.strip():
-            raise GeminiError("GEMINI_API_KEYが未設定です。環境変数またはGit管理外の秘密設定に登録してください。")
         self.consent.validate()
         if model_profile(self.model) != self.profile:
             raise GeminiError("モデル設定が変更されました。送信せず停止しました。設定と送信内容を再確認してください。")
         payload = build_payload(context, history, self.past_titles)
+        api_key = self._api_key if self._api_key is not None else os.environ.get("GEMINI_API_KEY", "")
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise GeminiError("GEMINI_API_KEYが未設定です。環境変数またはGit管理外の秘密設定に登録してください。")
         genai, errors, types, httpx2 = load_sdk()
         thinking = None
         if self.profile.thinking_level is not None:
@@ -193,7 +194,7 @@ class GeminiThemeGenerator:
         try:
             # Explicit Developer API, fixed host, no Vertex/enterprise discovery,
             # one HTTP attempt, no web/grounding/function calls or paid fallback.
-            with genai.Client(api_key=self._api_key, vertexai=False, enterprise=False,
+            with genai.Client(api_key=api_key, vertexai=False, enterprise=False,
                 http_options=types.HttpOptions(base_url=OFFICIAL_ENDPOINT, api_version="v1beta", timeout=30000,
                                                 retry_options=types.HttpRetryOptions(attempts=1))) as client:
                 response = client.models.generate_content(model=self.model, contents=prompt,

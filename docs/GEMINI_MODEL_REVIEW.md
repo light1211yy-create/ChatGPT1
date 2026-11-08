@@ -1,5 +1,27 @@
 # Gemini最新モデル：公式資料の調査・調整記録
 
+## 2026-11-09の現行状態：ユーザー確認による登録
+
+**現在は`gemini-3.5-flash-lite`をGeminiモードの既定・唯一の選択肢として登録済み。実API試験は別途承認待ち。** 以下の情報はユーザーがGoogle公式資料で確認して提供したものであり、Codex自身のページ直接取得・実API確認としては扱わない。
+
+| ユーザー確認内容 | 提供された公式出典 |
+| --- | --- |
+| 正式な安定版ID、Structured outputs対応 | [モデル個別仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) |
+| Standard Free tierで入力・出力トークンの無料枠あり | [料金表](https://ai.google.dev/gemini-api/docs/pricing) |
+| thinking_levelのminimal／low／medium／high対応 | [Thinking仕様](https://ai.google.dev/gemini-api/docs/generate-content/thinking) |
+
+確認日2026-11-09、確認元user_confirmationと3 URLをModelProfileへ記録した。APIキーが確認済みFree tier・請求先未設定のプロジェクトに対応することは、初回通信前にユーザーが再確認する。APIキーだけで課金状態・プロジェクトの利用資格を保証できない。
+
+設定はthinking_level=MINIMAL、thinking_budget未設定、max_output_tokens=8192。8192はアプリの要求上限であり、公式最大値は今回確認していない。SDK3.0.0で型とJSONリクエストの整合性をモック検証し、依存変更は不要とした。対象モデルでの実際の受理・日本語品質・遅延・利用枠は未検証。
+
+画面表示・モデル選択ではキーを読まず、3確認が揃った生成時だけ読む。初回実API試験の承認は開発・pushの承認とは別で、3つ目の確認もその承認済みを要求する。今回の開発中は実キーの読み出し・表示・送信、実API通信は禁止で、全試験はダミーキーとモック。一時DBのみを使用する。
+
+既存226件を保持する。モデル未登録のテストは空の一覧を明示し、停止処理の期待値を維持する。3.5登録、MINIMALとbudget未送信、JSON10件、キー未読み出し、承認・修正・却下、各エラー・重複時の無保存等の28件を追加した。README／GEMINI_SETUP／PROJECT_SPECも更新する。未pushの11b46c6を変更・破棄せず追加コミットにまとめる。
+
+今回の実行結果：Linux・Python 3.12で254件成功・失敗／スキップ0件。実サーバーの5画面・保存・再起動後の保持と、Chromiumでの3.5既定表示・未承認時のキー未読み出し・確認のリセット・無料モードへの復帰も成功。実API通信・実キーの読み取り0回。実モデルの日本語品質・キー／プロジェクトの対応・利用資格・遅延・今回のWindows実機は未検証。
+
+## 以下は2026-11-08、11b46c6時点の調査履歴
+
 調査日：2026-11-08（日本時間）。基準コミット75981be。実API通信0回。モデル一覧のAPI照会も行っていない。本人のsecrets.toml・キーは開かず、課金・アカウント・ネットワーク設定は変更していない。
 
 ## 調査結果と採用判断

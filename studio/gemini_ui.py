@@ -5,7 +5,7 @@ import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from studio.gemini import PRICING_URL
-from studio.gemini_models import NO_VERIFIED_MODELS, available_models
+from studio.gemini_models import DEFAULT_MODEL_ID, NO_VERIFIED_MODELS, available_models, model_profile
 
 GEMINI_MODE = "Gemini AIモード"
 TEST_MODE = "無料テストモード（従来方式）"
@@ -33,11 +33,14 @@ def choose_mode():
     st.markdown(f"[公式料金表を確認]({PRICING_URL})")
     st.info("キーのプロジェクト別の無料枠は未確認です。公式確認済みモデルでも、本人によるFree tier・Cloud Billing無効の確認と今回1回の送信承認が必要です。アプリから課金状態は検証できません。")
     models = available_models()
-    model = st.selectbox("Geminiモデル（公式確認済みの無料モデルのみ）", models, disabled=not models)
+    model = st.selectbox("Geminiモデル（公式確認済みの無料モデルのみ）", models,
+                         index=models.index(DEFAULT_MODEL_ID) if DEFAULT_MODEL_ID in models else 0, disabled=not models)
     if not models:
         st.error(NO_VERIFIED_MODELS)
-        st.caption("2026-11-08：公式資料5ページは環境プロキシで403となりました。3.5の正式ID・無料枠・設定と、旧2.5の現在の利用資格は未確認です。")
         return mode, None
-    if not read_api_key():
-        st.warning("GEMINI_API_KEYが未設定です。キーは画面に貼り付けず、環境変数またはGit管理外の秘密設定を使用してください。")
+    profile = model_profile(model)
+    if profile.confirmation_source == "user_confirmation":
+        st.caption(f"{profile.reviewed_on.isoformat()}：ユーザーがGoogle公式資料で確認した情報を根拠に登録しています。Codexによるページ直接取得・実API接続の確認ではありません。")
+    st.info("初回の実APIテストは別途承認後に1回だけ実施します。この開発依頼は実通信の承認ではありません。キーが確認済みのFree tierプロジェクトに対応することを初回通信前に再確認してください。")
+    st.caption("画面の表示・モード選択ではAPIキーを読み取りません。生成時に3つの確認・承認が揃ってから読み取ります。")
     return mode, model

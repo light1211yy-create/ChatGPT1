@@ -24,6 +24,12 @@ APP = Path(__file__).resolve().parents[1] / "app.py"
 
 
 @pytest.fixture
+def no_reviewed_models(monkeypatch):
+    """Retain empty-registry safety cases after the new model is registered."""
+    monkeypatch.setattr(gemini_models, "VERIFIED_FREE_MODELS", {})
+
+
+@pytest.fixture
 def mock_sdk(monkeypatch):
     # The official SDK still serializes the request, but no socket may connect.
     real_client = genai.Client
@@ -46,14 +52,14 @@ def mock_sdk(monkeypatch):
     return state
 
 
-def test_production_has_no_officially_verified_models():
+def test_production_has_no_officially_verified_models(no_reviewed_models):
     assert gemini_models.VERIFIED_FREE_MODELS == {}
     assert available_models() == ()
 
 
 @pytest.mark.parametrize("model", [None, "gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash",
                                    "gemini-3.5-flash-lite-preview"])
-def test_unverified_model_never_constructs_sdk_or_changes_existing_data(tmp_path, mock_sdk, model):
+def test_unverified_model_never_constructs_sdk_or_changes_existing_data(tmp_path, mock_sdk, no_reviewed_models, model):
     store = Store(tmp_path / "protected.sqlite3")
     generate_and_save(store, CONTEXT)
     theme = store.themes()[0]
@@ -65,7 +71,7 @@ def test_unverified_model_never_constructs_sdk_or_changes_existing_data(tmp_path
     assert (store.batches(), store.themes(), store.audit(theme["id"])) == before
 
 
-def test_ui_blocks_unverified_generation_and_can_return_to_test_mode(tmp_path, monkeypatch, mock_sdk):
+def test_ui_blocks_unverified_generation_and_can_return_to_test_mode(tmp_path, monkeypatch, mock_sdk, no_reviewed_models):
     monkeypatch.setenv("MAKASE_DB_PATH", str(tmp_path / "ui.sqlite3"))
 
     def forbid_key_read():
