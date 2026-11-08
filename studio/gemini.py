@@ -199,7 +199,7 @@ class GeminiThemeGenerator:
                                                 retry_options=types.HttpRetryOptions(attempts=1))) as client:
                 response = client.models.generate_content(model=self.model, contents=prompt,
                     config=types.GenerateContentConfig(response_mime_type="application/json", response_json_schema=response_schema(),
-                        max_output_tokens=self.profile.max_output_tokens, candidate_count=1, thinking_config=thinking,
+                        max_output_tokens=self.profile.max_output_tokens, thinking_config=thinking,
                         tools=[], automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
                 if not response.candidates or response.candidates[0].finish_reason != types.FinishReason.STOP:
                     raise GeminiError("Geminiの応答が中断・ブロックされました。保存せず停止しました。")
