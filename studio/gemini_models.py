@@ -9,10 +9,10 @@ from datetime import date
 
 SDK_VERSION = "3.0.0"
 DOCS_ROOT = "https://ai.google.dev/gemini-api/docs/"
-DEFAULT_MODEL_ID = "gemini-3.5-flash-lite"
+DEFAULT_MODEL_ID = "gemini-3.8-flash"
 MODEL_SPEC_URL = DOCS_ROOT + "models/" + DEFAULT_MODEL_ID
 PRICING_URL = DOCS_ROOT + "pricing"
-THINKING_URL = DOCS_ROOT + "generate-content/thinking"
+THINKING_URL = DOCS_ROOT + "thinking"
 OFFICIAL_DOCS = (DOCS_ROOT + "models", PRICING_URL, THINKING_URL,
                  DOCS_ROOT + "structured-output", DOCS_ROOT + "rate-limits")
 NO_VERIFIED_MODELS = (
@@ -37,14 +37,21 @@ class ModelProfile:
     confirmation_source: str = "test_fixture"
 
 
-# The user confirmed the stable ID, Standard Free tier text I/O, structured
-# output and supported thinking levels. Project/key eligibility is still a
-# separate preflight check. 8192 is our request cap, not a claimed model maximum.
+# 3.8 Flash: verified via Google's public model page, pricing page and thinking guide
+# on 2026-11-09. Standard text input/output is Free tier; user must still confirm
+# their own API-key project is Free tier and has Cloud Billing disabled.
+# This registry is not evidence of a successful live API request.
 VERIFIED_FREE_MODELS: dict[str, ModelProfile] = {
     DEFAULT_MODEL_ID: ModelProfile(
         model_id=DEFAULT_MODEL_ID, max_output_tokens=8192,
-        thinking_budget=None, thinking_level="MINIMAL", reviewed_on=date(2026, 11, 9),
+        thinking_budget=None, thinking_level="MEDIUM", reviewed_on=date(2026, 11, 9),
         source_urls=(MODEL_SPEC_URL, PRICING_URL, THINKING_URL),
+        confirmation_source="developer_review",
+    ),
+    "gemini-3.5-flash-lite": ModelProfile(
+        model_id="gemini-3.5-flash-lite", max_output_tokens=8192,
+        thinking_budget=None, thinking_level="MINIMAL", reviewed_on=date(2026, 11, 9),
+        source_urls=(DOCS_ROOT + "models/gemini-3.5-flash-lite", PRICING_URL, THINKING_URL),
         confirmation_source="user_confirmation",
     ),
 }
@@ -71,7 +78,9 @@ def model_profile(model=None):
         or (profile.thinking_budget is not None and
             (type(profile.thinking_budget) is not int or profile.thinking_budget < 0))
         or (profile.thinking_level is not None and profile.thinking_level not in ("MINIMAL", "LOW", "MEDIUM", "HIGH"))
-        or (profile.thinking_budget is not None and profile.thinking_level is not None)):
+        or (profile.thinking_budget is not None and profile.thinking_level is not None)
+        or (model == "gemini-3.8-flash" and
+            (profile.thinking_budget is not None or profile.thinking_level not in ("LOW", "MEDIUM", "HIGH")))):
         raise GeminiError("モデル別設定・公式確認記録・SDKの組み合わせが不正です。送信せず停止しました。")
     return profile
 

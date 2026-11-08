@@ -1,4 +1,14 @@
 # MAKASE AI Studio — Phase 2（施設候補管理）
+## Gemini 3.8 Flash への更新（2026-11-09、ブランチ検証中）
+
+モデルIDは `gemini-3.8-flash`、Gemini AIモードの既定思考設定は `thinking_level=MEDIUM` です。`thinking_budget` と `candidate_count` は送信しません。従来の `gemini-3.5-flash-lite` はユーザーが明示選択できる候補として残し、自動フォールバックは行いません。
+
+Google公式の[3.8 Flash仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)、[料金表](https://ai.google.dev/gemini-api/docs/pricing)、[移行ガイド](https://ai.google.dev/gemini-api/docs/latest-model)を参照。料金表ではStandardのテキスト入力・出力にFree tier枠がありますが、実際のキー／プロジェクトで利用できること、残り枠、請求先無効は別途本人が確認してください。
+
+API通信・実キーの読み出しは行っていません。従来の `google-genai==3.0.0` を維持していますが、Gemini 3.8本体との互換性や実際の生成成功は未確認です。初回送信にはユーザーの別途明示承認が必要です。既存SQLite・`data`・`.streamlit/secrets.toml` を削除、上書きしないでください。
+
+この追記より前の「3.5が唯一」「3.5が最新」という記述は旧版の履歴です。最新の構成は本節と `studio/gemini_models.py` を優先してください。
+
 
 日本在住18〜34歳向けの投稿テーマを企画し、承認して制作進捗・施設候補を管理する日本語Streamlitアプリです。**Python 3.12（64bit）を推奨**します。Windows用バッチは3.12を使用します。開発時のテスト環境はLinux・Python 3.12です。Phase 1のWindows起動成功はユーザーから報告されていますが、このPhase 2更新版のWindows実機検証は未実施です。SQLiteはPython標準付属です。
 
@@ -6,13 +16,13 @@
 
 QA不具合修正版では、更新競合の通知・編集保持・最新値の比較と、投稿実績の保存前検証を改善しています。[修正・再検証報告](docs/QA_FIX_REPORT.md)を参照してください。過去のQA報告書は修正前の証跡として残しています。
 
-最新のモデルは`gemini-3.5-flash-lite`です。登録の根拠はユーザーが確認したGoogle公式情報で、実API試験は未実施です。モデル選択だけでは通信・キー読み出しを行いません。初回実APIテストの別途承認までは、無料テストモードで操作を確認してください。
+Gemini AIモードの既定モデルは`gemini-3.8-flash`（MEDIUM）、比較用候補は`gemini-3.5-flash-lite`（MINIMAL）です。登録の根拠はユーザーが確認したGoogle公式情報で、実API試験は未実施です。モデル選択だけでは通信・キー読み出しを行いません。初回実APIテストの別途承認までは、無料テストモードで操作を確認してください。
 
 1. アプリの起動ウィンドウで `Ctrl+C` を押して停止し、ほかにMAKASEが起動していないことを確認します。
 2. `data`フォルダ全体を別の場所にコピーしてバックアップします。`MAKASE_DB_PATH`を設定した場合は、そのDBと同じ場所のWAL／SHMファイルも含めて退避します。既存のソースも別途退避してください。
 3. GitHub Desktopで対象リポジトリとmainを選びます。今回の2コミットが承認・pushされた後にFetch origin → Pull originで取得します。未コミットの変更をDiscardせず、競合があれば更新を止めて確認してください。`.venv`・`data`・`.env`・secrets.tomlは置き換えません。
 4. 依存変更なし。`google-genai==3.0.0`が導入済みなら追加セットアップ不要で、既存`start_windows.bat`を使います。未導入・版違いの場合だけ `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を実行します。DB初期化・移行は不要です。
-5. 無料テストモード、保存済みテーマ・承認・施設情報の表示を確認します。Gemini AIモードへ切り替えると3.5が既定で表示されますが、実通信は初回試験の別途承認後に行います。
+5. 無料テストモード、保存済みテーマ・承認・施設情報の表示を確認します。Gemini AIモードへ切り替えると3.8 Flashが既定で表示されますが、実通信は初回試験の別途承認後に行います。
 
 元の版に戻す場合は、アプリを停止して退避したソースへ戻します。旧版は新しい施設テーブルを使いません。更新後に保存したデータを失わないよう、DBのバックアップを復元する場合は復元時点も確認してください。更新作業はWindows実機では未検証です。
 
@@ -91,12 +101,12 @@ python3 -m venv .venv
 
 ### Gemini AIモード（今回追加）
 
-**Gemini AIモードの既定・唯一の選択肢は`gemini-3.5-flash-lite`です。** 正式ID、Standard API Free tierのテキスト入出力、Structured outputs、Thinking各levelは、2026-11-09にユーザーがGoogle公式資料で確認した情報を根拠としています。Codexが資料を直接取得した／実APIに接続したという意味ではありません。[確認根拠](docs/GEMINI_MODEL_REVIEW.md)・[導入手順](docs/GEMINI_SETUP.md)を参照してください。アプリ起動時は従来の無料テストモードです。
+**Gemini AIモードの既定は`gemini-3.8-flash`（MEDIUM）で、`gemini-3.5-flash-lite`（MINIMAL）も手動選択できます。** 正式ID、Standard API Free tierのテキスト入出力、Structured outputs、Thinking各levelは、2026-11-09にユーザーがGoogle公式資料で確認した情報を根拠としています。Codexが資料を直接取得した／実APIに接続したという意味ではありません。[確認根拠](docs/GEMINI_MODEL_REVIEW.md)・[導入手順](docs/GEMINI_SETUP.md)を参照してください。アプリ起動時は従来の無料テストモードです。
 
 - 今回は依存変更なし。`google-genai==3.0.0`を維持します。既にこの版ならアプリ停止・バックアップ後にGitHub DesktopのFetch／Pullでソースを更新し、既存の`start_windows.bat`で起動できます。未導入・版違いなら `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を実行します。DB初期化は不要です。
 - キーは`GEMINI_API_KEY`環境変数か、Git管理外の`.streamlit/secrets.toml`のトップレベルへ設定します。画面・チャット・GitHubへ貼り付けません。`.env`の自動読み込みは行いません。
 - Google AI Pro／AntigravityとAPI課金は別です。3つのチェック（モデルの無料枠、キーが確認済みFree tierプロジェクトに対応してBilling無効、今回1回の外部送信承認）を維持します。初回実API試験は開発とは別の承認が必要です。キーとプロジェクトの対応は初回通信前に本人が再確認します。アプリは課金状態を保証できません。
-- 画面表示・モード選択ではキーを読み取りません。3つのチェックを検証してから生成時に読み取ります。ThinkingはSDKの`MINIMAL`を使用し、`thinking_budget=0`は送信しません。出力8192トークンはアプリ側の上限です。1リクエスト・HTTPタイムアウト30秒で、自動再試行・有料モデルや旧2.5への切り替え・Web検索／Groundingはありません。
+- 画面表示・モード選択ではキーを読み取りません。3つのチェックを検証してから生成時に読み取ります。Thinkingは3.8ではSDKの`MEDIUM`、3.5-Liteでは`MINIMAL`を使用し、`thinking_budget`と`candidate_count`は送信しません。出力8192トークンはアプリ側の上限です。1リクエスト・HTTPタイムアウト30秒で、自動再試行・有料モデルや旧2.5への切り替え・Web検索／Groundingはありません。
 - モデル名・生成日時を表示し、従来どおり承認・修正・却下できます。実績は集計だけを送り、過去テーマとの重複を保存前に検証します。AIの案には最新Web・施設情報が未確認であることを表示します。
 - 実Google APIによる生成とWindows実機確認はまだ行っていません。モックの成功を実AIの成功とは報告しません。DB・承認履歴・他の画面は維持し、追加のDB移行は不要です。
 
@@ -142,7 +152,7 @@ studio/db.py           SQLite保存・入力検証・変更履歴・更新競合
 studio/generator.py    企画条件・生成器インターフェース・無料テスト生成
 studio/planning.py     生成器から検証・保存までの共通処理
 studio/gemini.py       明示承認付きGemini生成・JSON検証・集計送信
-studio/gemini_models.py 公式確認済みモデルとモデル別設定（現在0件）
+studio/gemini_models.py 公式確認済みモデルとモデル別設定（現在2件）
 studio/gemini_ui.py    モード選択・外部送信と無料枠の案内
 studio/research.py     施設・出典・写真許諾のSQLite保存
 studio/research_ui.py  施設候補の登録・比較画面

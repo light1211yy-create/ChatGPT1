@@ -57,8 +57,8 @@ def sdk(monkeypatch):
 
 
 def test_user_confirmed_production_profile_is_only_default_model():
-    assert gemini_models.available_models() == (MODEL,)
-    profile = gemini_models.model_profile()
+    assert gemini_models.available_models() == ("gemini-3.8-flash", MODEL)
+    profile = gemini_models.model_profile(MODEL)
     assert profile.model_id == MODEL and profile.confirmation_source == "user_confirmation"
     assert profile.reviewed_on == date(2026, 11, 9)
     assert profile.thinking_level == "MINIMAL" and profile.thinking_budget is None
@@ -66,7 +66,7 @@ def test_user_confirmed_production_profile_is_only_default_model():
     assert profile.source_urls == (
         "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
         "https://ai.google.dev/gemini-api/docs/pricing",
-        "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
+        "https://ai.google.dev/gemini-api/docs/thinking",
     )
     # SDK-side typing only; this does not contact the real model.
     cfg = types.ThinkingConfig(thinking_level=profile.thinking_level)
@@ -75,7 +75,7 @@ def test_user_confirmed_production_profile_is_only_default_model():
 
 def test_real_sdk_serializes_default_model_minimal_schema_and_safe_options(tmp_path, sdk):
     store = Store(tmp_path / "sdk.sqlite3")
-    provider = GeminiThemeGenerator(api_key=KEY, consent=CONSENT)
+    provider = GeminiThemeGenerator(model=MODEL, api_key=KEY, consent=CONSENT)
     batch = generate_and_save(store, CONTEXT, provider)
     assert len(sdk.requests) == len(sdk.constructors) == 1
     request = sdk.requests[0]
@@ -114,7 +114,7 @@ def test_incomplete_consent_cannot_even_read_environment_key(tmp_path, monkeypat
         return original_get(name, *args)
 
     monkeypatch.setattr(gemini.os.environ, "get", guard)
-    provider = GeminiThemeGenerator(consent=GeminiConsent(*checks))
+    provider = GeminiThemeGenerator(model=MODEL, consent=GeminiConsent(*checks))
     store = Store(tmp_path / "no-consent.sqlite3")
     with pytest.raises(GeminiError):
         generate_and_save(store, CONTEXT, provider)
@@ -134,8 +134,8 @@ def test_ui_requires_three_checks_before_reading_any_key(tmp_path, monkeypatch, 
     next(r for r in at.radio if r.label == "生成モード").set_value(gemini_ui.GEMINI_MODE).run()
     assert not at.exception
     model = next(s for s in at.selectbox if s.label.startswith("Geminiモデル"))
-    assert model.value == MODEL and model.options == [MODEL] and not model.disabled
-    assert len(at.checkbox) == 3 and any("ユーザーがGoogle公式資料で確認" in c.value for c in at.caption)
+    assert model.value == "gemini-3.8-flash" and model.options == ["gemini-3.8-flash", MODEL] and not model.disabled
+    assert len(at.checkbox) == 3  # Confirmation is required for all models; 3.8 has developer-reviewed provenance.
     assert any("別途承認" in info.value for info in at.info)
     next(b for b in at.button if b.label == "送信内容を更新して確認").click().run()
     for index, checkbox in enumerate(at.checkbox):
@@ -199,7 +199,7 @@ def test_new_model_failures_never_overwrite_existing_data_or_retry(tmp_path, sdk
     else:
         sdk.finish = "MAX_TOKENS"
     with pytest.raises(GeminiError) as error:
-        generate_and_save(store, CONTEXT, GeminiThemeGenerator(api_key=KEY, consent=CONSENT))
+        generate_and_save(store, CONTEXT, GeminiThemeGenerator(model=MODEL, api_key=KEY, consent=CONSENT))
     assert len(sdk.requests) == 1 and MODEL in str(sdk.requests[0].url)
     assert (store.batches(), store.themes(), store.audit(theme["id"])) == before
     assert KEY not in str(error.value) and KEY not in caplog.text
@@ -207,9 +207,9 @@ def test_new_model_failures_never_overwrite_existing_data_or_retry(tmp_path, sdk
 
 def test_new_model_duplicate_with_saved_theme_is_not_saved(tmp_path, sdk):
     store = Store(tmp_path / "duplicate.sqlite3")
-    generate_and_save(store, CONTEXT, GeminiThemeGenerator(api_key=KEY, consent=CONSENT))
+    generate_and_save(store, CONTEXT, GeminiThemeGenerator(model=MODEL, api_key=KEY, consent=CONSENT))
     before = (store.batches(), store.themes())
-    provider = GeminiThemeGenerator(api_key=KEY, consent=CONSENT, past_titles=store.theme_titles())
+    provider = GeminiThemeGenerator(model=MODEL, api_key=KEY, consent=CONSENT, past_titles=store.theme_titles())
     with pytest.raises(GeminiError, match="重複"):
         generate_and_save(store, CONTEXT, provider)
     assert (store.batches(), store.themes()) == before and len(sdk.requests) == 2

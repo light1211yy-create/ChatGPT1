@@ -200,3 +200,11 @@ Gemini AIモードの既定・唯一のモデルを3.5とし、ThinkingはSDKの
 3確認は無料枠、実際のキーが確認済みFree tierプロジェクトに対応してBilling無効、今回1回の外部送信承認。初回実API試験は開発とは別の明示承認を必要とし、3つ目の確認にもその承認済みを含む。画面表示・モード変更・プレビュー・承認不足時はキーを読み取らない。生成器の構築でも環境変数を参照せず、承認と入力検証後の生成時まで遅らせる。
 
 今回の開発では実通信・実キーの読み出し／表示／送信禁止。ダミーキーとMockTransportのみで既存226件と追加28件を検証する。既存のJSON10件・重複拒否・失敗時の無保存、Phase 1／Phase 2、データ、承認履歴、Windowsバッチを維持し、検索／Grounding、リトライ、有料モデルや旧2.5への切り替えは行わない。11b46c6は履歴を残し、今回の追加コミットとまとめてpush承認を求める。
+
+
+## 16. 2026-11-09：Gemini 3.8 Flashへの移行案（PRレビュー中）
+
+- Google公式のモデル一覧・[3.8 Flash仕様](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)で正式ID`gemini-3.8-flash`、対応Thinking値（LOW/MEDIUM/HIGH）、Structured outputs対応を確認した。[最新モデル移行ガイド](https://ai.google.dev/gemini-api/docs/latest-model)に従い、`thinking_budget`および`candidate_count`を送らず、`thinking_level=MEDIUM`を既定にする。
+- [公式料金表](https://ai.google.dev/gemini-api/docs/pricing?hl=ja)の2026-11-09確認情報では、3.8 FlashのStandardのテキスト入出力にFree tierがある。APIキーに紐づくプロジェクトがFree tier・Cloud Billing未リンクであることは利用者が初回通信前に別途確認する。Google AI Proとは別契約であり、アプリが課金状態を自動保証できるわけではない。
+- `gemini-3.5-flash-lite`は手動選択可能な比較用候補として維持。生成モードの既定は引き続き「無料テストモード」。モデル自動切替なし。APIキーや既存SQLite等の保護、3確認、確認不足時停止、APIエラー時無保存、再試行なしを維持。
+- 本番3.8 Flashの推論成功、Windows上での動作、モデル固有のAPI設定受理は未検証。今回の変更はGitHub上の開発ブランチであり、レビュー・自動テストと本人による明示的な本番反映承認を経てからmainへ取り込む。実API通信・鍵の読み出しなし。
