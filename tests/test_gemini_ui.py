@@ -137,9 +137,10 @@ def test_quota_error_does_not_save_or_retry_and_test_mode_still_works(ui):
     assert len(state.calls) == 1
 
 
-def test_secret_file_key_is_used_without_copying_to_session(monkeypatch):
+def test_secret_file_key_is_used_without_copying_to_session(monkeypatch, tmp_path):
     from studio.gemini_ui import read_api_key
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    import streamlit as st
-    monkeypatch.setattr(type(st.secrets), "get", lambda *a, **k: "mock-secret-file-key")
+    path = tmp_path / ".streamlit" / "secrets.toml"
+    path.parent.mkdir()
+    path.write_text('GEMINI_API_KEY = "mock-secret-file-key"\n', encoding="utf-8")
     assert read_api_key() == "mock-secret-file-key"

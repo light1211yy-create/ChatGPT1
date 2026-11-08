@@ -1,6 +1,10 @@
 [browser]
 gatherUsageStats = false
 
+[secrets]
+# The app reads its project file only after explicit consent, without auto-export.
+files = []
+
 [server]
 address = "127.0.0.1"
 port = 8501
