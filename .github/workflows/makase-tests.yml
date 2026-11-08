@@ -1,0 +1,30 @@
+name: MAKASE Python tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/gemini-3-8-flash]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run tests without real API credentials
+        env:
+          GEMINI_API_KEY: ""
+          GOOGLE_API_KEY: ""
+        run: python -m pytest -q tests qa/test_phase12_qa.py
