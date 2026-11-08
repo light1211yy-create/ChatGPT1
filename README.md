@@ -91,12 +91,12 @@ python3 -m venv .venv
 
 ### Gemini AIモード（今回追加）
 
-「AI投稿テーマ企画」でGemini AIモードを明示選択すると、公式SDKからテーマ10案を生成する接続処理を使用できます。既定は従来の無料テストモードです。[Geminiの導入・課金確認・Windows手順](docs/GEMINI_SETUP.md)を先に読んでください。
+Gemini接続処理は実装済みですが、**現在は公式確認済みモデルが0件のため、Geminiモデル選択・生成ボタンを無効化しています。** 2026-11-08の調査では指定の公式資料5ページが環境プロキシで403となり、`gemini-3.5-flash-lite`の正式ID・無料枠・対応設定も、旧2.5の現在の利用資格も未確認です。推測でモデルを採用しません。無料テストモードと保存済み履歴の確認・承認・修正・却下は使えます。[調査結果](docs/GEMINI_MODEL_REVIEW.md)・[導入手順](docs/GEMINI_SETUP.md)を参照してください。
 
-- 新しい依存は`google-genai==3.0.0`です。GitHub Desktopで更新を取得した後、アプリを停止した状態で `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を実行します。`start_windows.bat`はそのまま使います。
+- 今回は依存変更なし。`google-genai==3.0.0`を維持します。既にこの版ならアプリ停止・バックアップ後にGitHub DesktopのFetch／Pullでソースを更新し、既存の`start_windows.bat`で起動できます。未導入・版違いなら `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を実行します。DB初期化は不要です。
 - キーは`GEMINI_API_KEY`環境変数か、Git管理外の`.streamlit/secrets.toml`のトップレベルへ設定します。画面・チャット・GitHubへ貼り付けません。`.env`の自動読み込みは行いません。
 - Google AI Pro／AntigravityとAPIの課金は別です。公式料金表の現在の無料枠は開発環境から未確認です。**本人が選択モデルの無料枠、キーのFree tier・Cloud Billing無効を確認できない場合、Geminiモードを使用しないでください。** アプリは課金状態を保証できません。
-- フォームの送信内容を確認し、3つの確認・承認を入れた試行だけが外部へ送信されます。キーがない場合や入力不正時は送信せず停止します。1リクエスト・自動再試行なしで、エラー時に有料モデルへ切り替えません。
+- 公式資料の再調査後、確認済みモデルとモデル固有の設定をコードへ登録して初めて送信可能になります。その後も3つの確認・承認は必須です。キー未設定・未確認モデル・SDK版違い・入力不正では停止します。1リクエスト・自動再試行なしで、有料モデルへ切り替えません。
 - モデル名・生成日時を表示し、従来どおり承認・修正・却下できます。実績は集計だけを送り、過去テーマとの重複を保存前に検証します。AIの案には最新Web・施設情報が未確認であることを表示します。
 - 実Google APIによる生成とWindows実機確認はまだ行っていません。モックの成功を実AIの成功とは報告しません。DB・承認履歴・他の画面は維持し、追加のDB移行は不要です。
 
@@ -130,7 +130,7 @@ python3 -m venv .venv
 
 Linuxでは `.venv/bin/python -m pip install -r requirements-dev.txt` と `.venv/bin/python -m pytest -q` を使用します。テストは一時DBを使用し、実データを書き換えません。既存のPhase 1テストを維持し、施設登録・比較・出典編集・写真許諾・期限・承認取り消し・更新競合・旧DBへの追加テーブル作成・AI応答検証のテストも追加しています。
 
-総合再テストは `.venv/bin/python -m pytest -q tests qa/test_phase12_qa.py` です。既存104件を保持し、追加36件と合わせ140件がLinuxで成功しています。実サーバーでの確認は `.venv/bin/python qa/live_server_check.py`（Windowsは`.venv\Scripts\python.exe`）を使えます。この処理も一時DB・専用ローカルポートを使用します。Windows実機での今回の修正確認は未実施です。
+総合再テストは `.venv/bin/python -m pytest -q tests qa/test_phase12_qa.py` です。基準75981beの既存200件を保持し、モデル選択・設定分離・停止処理の26件を追加し、Linux・Python 3.12で226件成功・失敗0件でした。実サーバーでの確認は `.venv/bin/python qa/live_server_check.py`（Windowsは`.venv\Scripts\python.exe`）を使えます。この処理も一時DB・専用ローカルポートを使用します。Windows実機での今回の修正確認は未実施です。
 
 ## ファイル構成
 
@@ -140,6 +140,7 @@ studio/db.py           SQLite保存・入力検証・変更履歴・更新競合
 studio/generator.py    企画条件・生成器インターフェース・無料テスト生成
 studio/planning.py     生成器から検証・保存までの共通処理
 studio/gemini.py       明示承認付きGemini生成・JSON検証・集計送信
+studio/gemini_models.py 公式確認済みモデルとモデル別設定（現在0件）
 studio/gemini_ui.py    モード選択・外部送信と無料枠の案内
 studio/research.py     施設・出典・写真許諾のSQLite保存
 studio/research_ui.py  施設候補の登録・比較画面

@@ -11,7 +11,7 @@ import httpx2
 import pytest
 
 from studio.db import Store
-from studio.gemini import (AI_LABEL, MODEL_CANDIDATES, OFFICIAL_ENDPOINT, GeminiConsent, GeminiError,
+from studio.gemini import (AI_LABEL, OFFICIAL_ENDPOINT, GeminiConsent, GeminiError,
                            GeminiThemeGenerator, build_payload, parse_themes)
 from studio.generator import OfflineThemeGenerator, PlanningContext, ThemeDraft
 from studio.planning import generate_and_save
@@ -19,6 +19,8 @@ from studio.planning import generate_and_save
 CONTEXT = PlanningContext(date(2026, 11, 8), "おでかけ", "写真2枚、予算は本人が確認")
 CONSENT = GeminiConsent(True, True, True)
 TEST_KEY = "dummy-key-for-mock-only"
+# Historical model IDs are used only with the synthetic review fixture below.
+MODEL_CANDIDATES = ("gemini-2.5-flash-lite", "gemini-2.5-flash")
 
 
 def output_json(prefix="Gemini企画"):
@@ -32,7 +34,7 @@ def store(tmp_path):
 
 
 @pytest.fixture
-def transport(monkeypatch):
+def transport(monkeypatch, mock_reviewed_models):
     real_client = genai.Client
     state = SimpleNamespace(calls=[], constructor_calls=[], status=200, text=output_json(), finish="STOP", exception=None)
     def handler(request):

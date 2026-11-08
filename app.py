@@ -8,6 +8,7 @@ from studio.db import PROGRESS, Store
 from studio.editor_state import Editor, capture_editor_inputs, retained_editor
 from studio.generator import CATEGORIES, PlanningContext
 from studio.gemini import GeminiConsent, GeminiThemeGenerator, build_payload
+from studio.gemini_models import NO_VERIFIED_MODELS
 from studio.gemini_ui import GEMINI_MODE, choose_mode, read_api_key
 from studio.planning import generate_and_save
 from studio.research_ui import research_page
@@ -73,7 +74,7 @@ def planner(store):
             approved = st.checkbox("企画メモ・テーマ名に個人情報や秘密情報がないことを確認し、今回1回のGoogleへの外部送信を承認します", key=f"gemini_send_{model}_{epoch}")
         else:
             st.caption("テストモードでは企画メモを条件として添付します。内容への自動反映はしません。")
-        generate = st.form_submit_button("テーマ10案を作成", type="primary")
+        generate = st.form_submit_button("テーマ10案を作成", type="primary", disabled=mode == GEMINI_MODE and model is None)
     if generate:
         if mode == GEMINI_MODE:
             # Consent belongs to this submission only, also on errors/429.
@@ -81,6 +82,8 @@ def planner(store):
         try:
             context = PlanningContext(target, focus, brief)
             if mode == GEMINI_MODE:
+                if model is None:
+                    raise ValueError(NO_VERIFIED_MODELS)
                 provider = GeminiThemeGenerator(model=model, api_key=read_api_key(), past_titles=store.theme_titles(),
                     consent=GeminiConsent(free_confirmed, billing_disabled, approved))
                 batch_id = generate_and_save(store, context, provider)

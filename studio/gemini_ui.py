@@ -4,7 +4,8 @@ import os
 import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
-from studio.gemini import MODEL_CANDIDATES, PRICING_URL
+from studio.gemini import PRICING_URL
+from studio.gemini_models import NO_VERIFIED_MODELS, available_models
 
 GEMINI_MODE = "Gemini AIモード"
 TEST_MODE = "無料テストモード（従来方式）"
@@ -30,8 +31,13 @@ def choose_mode():
     st.write("送信対象：企画対象日・重点ジャンル・企画メモ、ジャンル別の投稿実績集計、直近300件までのテーマ名。投稿実績の個別タイトル・写真権利資料・DB全体は送信対象外です。")
     st.caption("企画メモ・テーマ名に秘密情報や個人情報を入力しないでください。共通パターンの検出だけで、すべての個人情報を自動判定できるわけではありません。")
     st.markdown(f"[公式料金表を確認]({PRICING_URL})")
-    st.info("開発環境から公式料金表を取得できなかったため、現在の無料枠は未確認です。以下は検証候補です。選択したモデルの無料枠と、キーのプロジェクトのFree tier・Cloud Billing無効を本人が確認するまで送信できません。アプリから課金状態は検証できません。")
+    st.info("キーのプロジェクト別の無料枠は未確認です。公式確認済みモデルでも、本人によるFree tier・Cloud Billing無効の確認と今回1回の送信承認が必要です。アプリから課金状態は検証できません。")
+    models = available_models()
+    model = st.selectbox("Geminiモデル（公式確認済みの無料モデルのみ）", models, disabled=not models)
+    if not models:
+        st.error(NO_VERIFIED_MODELS)
+        st.caption("2026-11-08：公式資料5ページは環境プロキシで403となりました。3.5の正式ID・無料枠・設定と、旧2.5の現在の利用資格は未確認です。")
+        return mode, None
     if not read_api_key():
         st.warning("GEMINI_API_KEYが未設定です。キーは画面に貼り付けず、環境変数またはGit管理外の秘密設定を使用してください。")
-    model = st.selectbox("Geminiモデル（無料枠の確認が必要）", MODEL_CANDIDATES)
     return mode, model

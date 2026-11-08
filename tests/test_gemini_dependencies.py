@@ -40,7 +40,13 @@ import app
 from studio.db import Store
 from studio.generator import PlanningContext
 from studio.gemini import GeminiConsent, GeminiError, GeminiThemeGenerator
+from studio import gemini_models
 from studio.planning import generate_and_save
+
+# Synthetic review for the missing-SDK test, not a claim of API eligibility.
+profile = gemini_models.ModelProfile('gemini-2.5-flash-lite', 8192, 0, None,
+    date(2026, 11, 8), gemini_models.OFFICIAL_DOCS)
+gemini_models.VERIFIED_FREE_MODELS = {profile.model_id: profile}
 
 store = Store()
 context = PlanningContext(date(2026, 11, 8), 'おでかけ', '')
@@ -65,7 +71,7 @@ assert (store.batches(), store.themes()) == before
     assert result.returncode == 0, result.stderr
 
 
-def test_missing_sdk_ui_keeps_all_pages_and_test_mode_usable(tmp_path, monkeypatch):
+def test_missing_sdk_ui_keeps_all_pages_and_test_mode_usable(tmp_path, monkeypatch, mock_reviewed_models):
     database = tmp_path / "ui.sqlite3"
     monkeypatch.setenv("MAKASE_DB_PATH", str(database))
     monkeypatch.setenv("GEMINI_API_KEY", "mock-key-only")

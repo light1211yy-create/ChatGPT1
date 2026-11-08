@@ -6,19 +6,18 @@ No API requests occur at import, construction or test-mode selection.
 """
 from dataclasses import dataclass, replace
 from datetime import date
+from importlib.metadata import PackageNotFoundError, version
 import json
 import os
 import re
 
 from studio.generator import CATEGORIES, EVENTS, PlanningContext, ThemeDraft, normalize_title, validate_drafts
+from studio.gemini_models import GeminiError, SDK_VERSION, model_profile
 
-# Candidates, NOT a claim of currently verified free eligibility. The official
-# pricing page is blocked in the development environment. A user must verify it.
-MODEL_CANDIDATES = ("gemini-2.5-flash-lite", "gemini-2.5-flash")
 PRICING_URL = "https://ai.google.dev/gemini-api/docs/pricing"
 OFFICIAL_ENDPOINT = "https://generativelanguage.googleapis.com"
 MAX_PAST_TITLES = 300
-PROMPT_VERSION = "makase-gemini-v1"
+PROMPT_VERSION = "makase-gemini-v2"
 AI_LABEL = "AI提案（最新Web情報・施設情報は未確認）"
 HOLIDAY_HINTS = {
     1: ["元日", "成人の日"], 2: ["建国記念の日", "天皇誕生日"], 3: ["春分の日"],
@@ -28,21 +27,20 @@ HOLIDAY_HINTS = {
 }
 
 
-class GeminiError(ValueError):
-    """Only safe Japanese messages may cross the UI boundary."""
-
-
 def load_sdk():
     """Keep local features usable before Gemini dependencies are installed."""
     try:
         from google import genai
         from google.genai import errors, types
         import httpx2
-    except ImportError:
+        installed_version = version("google-genai")
+    except (ImportError, PackageNotFoundError):
         raise GeminiError(
             "Gemini用SDKを読み込めません。アプリを停止し、app.pyと同じフォルダの"
             "setup_windows.batを再実行してください。無料テストモードは引き続き利用できます。"
         ) from None
+    if installed_version != SDK_VERSION:
+        raise GeminiError("Gemini用SDKのバージョンが検証済み設定と異なります。requirements.txtで依存関係を更新してください。送信していません。")
     return genai, errors, types, httpx2
 
 
@@ -100,6 +98,7 @@ def build_payload(context: PlanningContext, history, past_titles):
         "annual_holiday_hints": HOLIDAY_HINTS[month],
         "audience": {"residence": "日本", "ages": "18〜34歳", "women_percent": 55, "men_percent": 45},
         "region": "日本全国", "format": "ホテル・旅行・レストランの写真スライド", "weekly_post_goal": 5,
+        "preferred_series": ["ホテル5選", "レストラン5選", "旅行・おでかけ5選"],
         "priorities": ["写真映え", "非日常感", "コストパフォーマンス", "フォロワー増加", "保存される投稿"],
         "focus_category": context.focus, "brief": context.brief.strip(),
         "performance_summary": [v for v in totals.values() if v["posts"]],
@@ -156,14 +155,13 @@ def parse_themes(raw, past_titles):
 class GeminiThemeGenerator:
     avoid_existing_titles = True
 
-    def __init__(self, *, model=MODEL_CANDIDATES[0], api_key=None, consent=None, past_titles=()):
-        if model not in MODEL_CANDIDATES:
-            raise GeminiError("このモデルは利用対象外です。有料・未確認モデルへ切り替えません。")
-        self.model = model
+    def __init__(self, *, model=None, api_key=None, consent=None, past_titles=()):
+        self.profile = model_profile(model)
+        self.model = self.profile.model_id
         self._api_key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
         self.consent = consent or GeminiConsent()
         self.past_titles = tuple(past_titles)
-        self.model_version = model
+        self.model_version = self.model
 
     @property
     def name(self):
@@ -173,11 +171,20 @@ class GeminiThemeGenerator:
         if not isinstance(self._api_key, str) or not self._api_key.strip():
             raise GeminiError("GEMINI_API_KEYが未設定です。環境変数またはGit管理外の秘密設定に登録してください。")
         self.consent.validate()
+        if model_profile(self.model) != self.profile:
+            raise GeminiError("モデル設定が変更されました。送信せず停止しました。設定と送信内容を再確認してください。")
         payload = build_payload(context, history, self.past_titles)
         genai, errors, types, httpx2 = load_sdk()
+        thinking = None
+        if self.profile.thinking_level is not None:
+            thinking = types.ThinkingConfig(thinking_level=self.profile.thinking_level)
+        elif self.profile.thinking_budget is not None:
+            thinking = types.ThinkingConfig(thinking_budget=self.profile.thinking_budget)
         prompt = ("あなたはマカセの日本語TikTok企画担当です。指定JSONだけで重複のない10テーマを返してください。"
                   "ホテル・旅行はおでかけ、レストランはグルメに対応させてください。"
                   "写真映え・季節需要・視聴者属性・過去実績・過去テーマ・メモを考慮し、ホテル・旅行・レストランを優先。"
+                  "ホテル5選・レストラン5選・旅行やおでかけ5選の企画形式を基本としてください。"
+                  "5選は後で出典を調べて施設を選ぶ形式です。未調査の施設名・料金を5件埋めないでください。"
                   "未確認の実在施設・価格・イベント・過去実績を創作しないでください。"
                   "企画理由では推測と確認情報を区別し、スコアは成功率ではなく参考評価としてください。"
                   "Web検索は使えません。季節イベントはヒントで、最新情報の裏付けではありません。"
@@ -191,7 +198,7 @@ class GeminiThemeGenerator:
                                                 retry_options=types.HttpRetryOptions(attempts=1))) as client:
                 response = client.models.generate_content(model=self.model, contents=prompt,
                     config=types.GenerateContentConfig(response_mime_type="application/json", response_json_schema=response_schema(),
-                        max_output_tokens=8192, candidate_count=1, thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        max_output_tokens=self.profile.max_output_tokens, candidate_count=1, thinking_config=thinking,
                         tools=[], automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
                 if not response.candidates or response.candidates[0].finish_reason != types.FinishReason.STOP:
                     raise GeminiError("Geminiの応答が中断・ブロックされました。保存せず停止しました。")
@@ -206,6 +213,8 @@ class GeminiThemeGenerator:
                 message = "Geminiの利用枠不足（429）です。停止しました。自動再試行・有料モデルへの切り替えは行いません。"
             elif error.code in (408, 504):
                 message = "Geminiがタイムアウトしました。保存せず停止しました。"
+            elif error.code == 404:
+                message = "モデルの利用エラー（404）です。提供状況・プロジェクトの利用資格を確認してください。別モデルへ切り替えず停止しました。"
             else:
                 message = "Gemini APIでエラーが発生しました。保存せず停止しました。"
             raise GeminiError(message) from None

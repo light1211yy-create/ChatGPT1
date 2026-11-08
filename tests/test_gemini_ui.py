@@ -20,7 +20,7 @@ def item(at, kind, label, index=0):
 
 
 @pytest.fixture
-def ui(tmp_path, monkeypatch):
+def ui(tmp_path, monkeypatch, mock_reviewed_models):
     monkeypatch.setenv("MAKASE_DB_PATH", str(tmp_path / "ui.sqlite3"))
     monkeypatch.setenv("GEMINI_API_KEY", "mock-ui-key")
     state = SimpleNamespace(calls=[], clients=0, fail=False)
