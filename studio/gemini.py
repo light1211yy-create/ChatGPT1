@@ -153,12 +153,22 @@ def parse_themes(raw, past_titles):
         raise GeminiError("GeminiのJSON応答が不正です。10件・必須項目・文字数・スコアを満たさないため保存していません。") from None
 
 
+def select_thinking_level(profile, requested=None):
+    """Only manually allow LOW on 3.8 Flash; other models keep reviewed defaults."""
+    level = profile.thinking_level if requested is None else requested
+    allowed = ("MEDIUM", "LOW") if profile.model_id == "gemini-3.8-flash" else (profile.thinking_level,)
+    if level not in allowed or (level is not None and type(level) is not str):
+        raise GeminiError("選択したモデルの思考レベルは利用対象外です。送信していません。")
+    return level
+
+
 class GeminiThemeGenerator:
     avoid_existing_titles = True
 
-    def __init__(self, *, model=None, api_key=None, consent=None, past_titles=()):
+    def __init__(self, *, model=None, api_key=None, consent=None, past_titles=(), thinking_level=None):
         self.profile = model_profile(model)
         self.model = self.profile.model_id
+        self.thinking_level = select_thinking_level(self.profile, thinking_level)
         self._api_key = api_key  # Defer environment lookup until explicit consent.
         self.consent = consent or GeminiConsent()
         self.past_titles = tuple(past_titles)
@@ -166,12 +176,14 @@ class GeminiThemeGenerator:
 
     @property
     def name(self):
-        return f"Gemini AIモード / {self.model_version} / {PROMPT_VERSION}"
+        return (f"Gemini AIモード / {self.model_version} / {PROMPT_VERSION}"
+                + (f" / Thinking {self.thinking_level}" if self.thinking_level != self.profile.thinking_level else ""))
 
     def generate(self, context, history):
         self.consent.validate()
         if model_profile(self.model) != self.profile:
             raise GeminiError("モデル設定が変更されました。送信せず停止しました。設定と送信内容を再確認してください。")
+        select_thinking_level(self.profile, self.thinking_level)
         payload = build_payload(context, history, self.past_titles)
         api_key = normalize_key(self._api_key) if self._api_key is not None else load_api_key()
         if not api_key:
@@ -179,7 +191,7 @@ class GeminiThemeGenerator:
         genai, errors, types, httpx2 = load_sdk()
         thinking = None
         if self.profile.thinking_level is not None:
-            thinking = types.ThinkingConfig(thinking_level=self.profile.thinking_level)
+            thinking = types.ThinkingConfig(thinking_level=self.thinking_level)
         elif self.profile.thinking_budget is not None:
             thinking = types.ThinkingConfig(thinking_budget=self.profile.thinking_budget)
         prompt = ("あなたはマカセの日本語TikTok企画担当です。指定JSONだけで重複のない10テーマを返してください。"
