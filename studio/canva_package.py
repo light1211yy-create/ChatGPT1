@@ -43,10 +43,16 @@ def _photo_is_reusable(photo, today_value):
     scope = photo.get("usage_scope") or ""
     if not (owner.strip() and evidence.strip() and scope.strip()):
         return False
+    blocked = any(word in scope for word in (
+        "加工不可", "加工禁止", "文字重ね不可", "文字重ね禁止",
+        "トリミング不可", "トリミング禁止", "編集不可", "編集禁止",
+        "商用不可", "商用禁止", "TikTok不可", "SNS不可"))
     commercial = any(word in scope for word in ("商用", "営利", "広告"))
     sns = any(word.lower() in scope.lower() for word in ("TikTok", "SNS", "ソーシャルメディア"))
-    edit = any(word in scope for word in ("加工", "文字重ね", "トリミング", "編集"))
-    return commercial and sns and edit
+    edit = any(word in scope for word in ("加工可", "文字重ね可", "トリミング可",
+                                          "編集可", "加工許可", "文字重ね許可",
+                                          "トリミング許可", "編集許可"))
+    return not blocked and commercial and sns and edit
 
 
 def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
@@ -123,7 +129,7 @@ def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
                 "許諾の根拠（記録）": p.get("evidence", ""),
                 "利用期限": p.get("expires_on") or "",
                 "管理上の状態": effective_permission(p, today_value),
-                "TikTok商用編集向け候補": "掲載元URLのみ使用可（要最終確認）" if p in chosen_photos else "要確認・このパックのページに未採用",
+                "TikTok商用編集向け候補": "候補URL（公開前に要最終確認）" if p in chosen_photos else "要確認・このパックのページに未採用",
             })
 
     add_page(7, "締め", "気になる場所は保存してあとでチェック",
