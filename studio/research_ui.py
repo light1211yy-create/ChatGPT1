@@ -4,6 +4,7 @@ from datetime import date
 import streamlit as st
 
 from studio.auto_research_ui import research_ai_panel
+from studio.canva_package_ui import canva_package_panel
 from studio.editor_state import Editor
 from studio.research import CANDIDATE_STATUSES, PERMISSIONS, ResearchStore, effective_permission, today
 
@@ -172,3 +173,5 @@ def research_page(store):
     if approved:
         with st.expander("写真候補を登録・修正"):
             photo_editor(research, facility_id, photos)
+    if approved:
+        canva_package_panel(store, theme_id, facilities)
