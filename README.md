@@ -6,6 +6,12 @@
 
 詳細：[Phase 4 制作パックの操作・制約](docs/PHASE4_CANVA_EXPORT.md)
 
+### Phase 4.2｜任意のAI原稿・キャプション案
+
+制作パックで5施設を選び、「AIコピー案を作成・編集する」を選ぶと、3つの確認後に1回だけGeminiへ送信できます。既定の3.8 Flash／MEDIUMを維持し、3.5 Flash-Lite／MINIMALも手動選択できます。AIは中立的な文と本人確認済みの短い出典情報の選択・組み合わせに限定し、未確認の設備や価格を創作させません。生成後は7ページ・キャプションを編集・確認し、明示選択した場合だけZIPに含めます。原稿のDB保存・Canva編集・投稿は行いません。AIを使わない従来のZIPも維持します。
+
+依存関係の変更はありません。main統合後、アプリ停止・DBバックアップ→GitHub DesktopでFetch／Pull→既存の`start_windows.bat`で更新できます。`data`や秘密設定を上書きしないでください。実API・Windows実機・実Canvaテンプレートは未検証です。詳細：[Phase 4.2の使い方・安全条件](docs/PHASE4_AI_COPY.md)。
+
 
 APIキーが「未設定」と表示される場合は[読み込み不具合の調査・修正報告](docs/GEMINI_KEY_FIX_REPORT.md)を参照してください。修正版ではプロジェクトの`.streamlit/secrets.toml`を優先し、ファイルがない場合だけ環境変数を使います。3.8 Flash／MEDIUM、3.5-Liteの手動選択、SDK3.0.0は変更していません。
 
