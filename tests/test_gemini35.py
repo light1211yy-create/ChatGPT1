@@ -89,7 +89,7 @@ def test_real_sdk_serializes_default_model_minimal_schema_and_safe_options(tmp_p
     assert config["responseJsonSchema"]["properties"]["themes"]["maxItems"] == 10
     assert body["tools"] == [] and "googleSearch" not in json.dumps(body)
     options = sdk.constructors[0]["http_options"]
-    assert options.retry_options.attempts == 1 and options.timeout == 30000
+    assert options.retry_options.attempts == 1 and options.timeout == 120000
     assert sdk.constructors[0]["vertexai"] is False and sdk.constructors[0]["enterprise"] is False
     reopened = Store(store.path)
     assert len(reopened.themes(batch)) == 10

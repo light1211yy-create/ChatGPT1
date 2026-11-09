@@ -113,7 +113,7 @@ def test_sdk_serializes_explicit_level_without_legacy_budget(tmp_path, monkeypat
     assert cfg["maxOutputTokens"] == tokens
     assert cfg["responseMimeType"] == "application/json" and cfg["responseJsonSchema"]["properties"]["themes"]["minItems"] == 10
     options = mock_sdk["constructors"][0]["http_options"]
-    assert options.retry_options.attempts == 1 and options.timeout == 30000
+    assert options.retry_options.attempts == 1 and options.timeout == 120000
 
 
 @pytest.mark.parametrize("change", [

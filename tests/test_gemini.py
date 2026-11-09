@@ -79,7 +79,7 @@ def test_official_sdk_structured_output_single_call_metadata_and_persistence(sto
     constructor = transport.constructor_calls[0]
     assert constructor["vertexai"] is False and constructor["enterprise"] is False
     options = constructor["http_options"]
-    assert options.base_url == OFFICIAL_ENDPOINT and options.timeout == 30000 and options.retry_options.attempts == 1
+    assert options.base_url == OFFICIAL_ENDPOINT and options.timeout == 120000 and options.retry_options.attempts == 1
     reopened = Store(store.path)
     assert len(reopened.themes(batch_id)) == 10
     batch = reopened.batches()[0]

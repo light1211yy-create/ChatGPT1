@@ -68,7 +68,7 @@ def planner(store):
                 except ValueError as exc:
                     st.error(str(exc))
             st.form_submit_button("送信内容を更新して確認")
-            st.caption("フォーム内で変更した値は、送信操作時にサーバーで再検証します。生成はHTTPタイムアウト30秒・自動再試行なしの1リクエストです。")
+            st.caption("フォーム内で変更した値は、送信操作時にサーバーで再検証します。生成はHTTPタイムアウト120秒・自動再試行なしの1リクエストです。")
             free_confirmed = st.checkbox("公式料金表で選択モデルの無料枠を確認しました", key=f"gemini_free_{model}_{epoch}")
             billing_disabled = st.checkbox("このAPIキーが確認済みのFree tierプロジェクトに対応し、Cloud Billingが無効なことを確認しました", key=f"gemini_billing_{model}_{epoch}")
             approved = st.checkbox("初回実APIテストは別途承認済みであり、企画メモ・テーマ名に秘密情報や個人情報がないことを確認し、今回1回のGoogleへの外部送信を承認します", key=f"gemini_send_{model}_{epoch}")

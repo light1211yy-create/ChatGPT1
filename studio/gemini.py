@@ -196,7 +196,7 @@ class GeminiThemeGenerator:
             # Explicit Developer API, fixed host, no Vertex/enterprise discovery,
             # one HTTP attempt, no web/grounding/function calls or paid fallback.
             with genai.Client(api_key=api_key, vertexai=False, enterprise=False,
-                http_options=types.HttpOptions(base_url=OFFICIAL_ENDPOINT, api_version="v1beta", timeout=30000,
+                http_options=types.HttpOptions(base_url=OFFICIAL_ENDPOINT, api_version="v1beta", timeout=120000,
                                                 retry_options=types.HttpRetryOptions(attempts=1))) as client:
                 response = client.models.generate_content(model=self.model, contents=prompt,
                     config=types.GenerateContentConfig(response_mime_type="application/json", response_json_schema=response_schema(),
@@ -214,14 +214,14 @@ class GeminiThemeGenerator:
             elif error.code == 429:
                 message = "Geminiの利用枠不足（429）です。停止しました。自動再試行・有料モデルへの切り替えは行いません。"
             elif error.code in (408, 504):
-                message = "Geminiがタイムアウトしました。保存せず停止しました。"
+                message = f"Gemini APIからHTTP {error.code}のタイムアウト応答が返されました。保存せず停止しました。自動再試行は行いません。"
             elif error.code == 404:
                 message = "モデルの利用エラー（404）です。提供状況・プロジェクトの利用資格を確認してください。別モデルへ切り替えず停止しました。"
             else:
                 message = "Gemini APIでエラーが発生しました。保存せず停止しました。"
             raise GeminiError(message) from None
         except (httpx2.TimeoutException, TimeoutError):
-            raise GeminiError("Geminiがタイムアウトしました。保存せず停止しました。") from None
+            raise GeminiError("クライアント側の通信がタイムアウトしました（HTTPタイムアウト設定120秒）。保存せず停止しました。自動再試行は行いません。") from None
         except Exception:
             raise GeminiError("Geminiに接続できませんでした。設定・通信・SDKを確認してください。保存していません。") from None
         drafts = parse_themes(raw, self.past_titles)
