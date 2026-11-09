@@ -1,7 +1,7 @@
 """User-operated AI research panel; each external step requires explicit consent."""
 import streamlit as st
 
-from studio.auto_research import AIResearchError, MODEL, build_research
+from studio.auto_research import AIResearchError, MODEL, OVERPASS_SERVERS, build_research
 from studio.gemini import GeminiConsent
 from studio.key_config import load_api_key
 
@@ -55,7 +55,14 @@ def research_ai_panel(research, theme_id, theme):
             area = st.text_input("検索地域（例：大阪市・京都市）", max_chars=65, key=f"ai_area_{theme_id}")
             kind_default = 1 if any(w in theme["title"] for w in ("レストラン", "カフェ", "グルメ", "食事")) else 0
             kind = st.selectbox("施設の種類", ("ホテル", "飲食店"), index=kind_default)
-            public_ok = st.checkbox("検索地域をOpenStreetMapへ送り、施設名をWikimedia Commonsへ送ることを承認します",
+            server_name = st.selectbox(
+                "施設検索の公開サーバー（接続先は手動選択、切替・再試行は自動実行しません）",
+                tuple(OVERPASS_SERVERS),
+                key=f"ai_overpass_server_{theme_id}",
+            )
+            st.caption("既定のFOSSGISで接続が失敗した場合、別の操作でPrivate.coffeeを選べます。"
+                       "検索地域はNominatimと選択した施設検索サーバーへ、施設名はCommonsへ送信されます。")
+            public_ok = st.checkbox("検索地域をNominatimと選択したOverpass公開サーバーへ送り、施設名をWikimedia Commonsへ送ることを承認します",
                                     key=f"ai_public_{theme_id}_{epoch}")
             free_ok = st.checkbox("Google公式料金表でGemini 3.5 Flash-Liteの無料枠を確認しました",
                                   key=f"ai_free_{theme_id}_{epoch}")
@@ -73,7 +80,8 @@ def research_ai_panel(research, theme_id, theme):
                 consent.validate()  # No network or secret read before consent.
                 if not area.strip():
                     raise AIResearchError("調査地域を入力してください。")
-                result = build_research(theme["title"], area.strip(), kind, load_api_key(), consent)
+                result = build_research(theme["title"], area.strip(), kind, load_api_key(), consent,
+                                        overpass_endpoint=OVERPASS_SERVERS[server_name])
                 research.save_ai_draft(theme_id, result)
                 st.session_state["notice"] = "AI調査が完了しました。5施設と写真候補を『未確認の下書き』に保存しました。"
                 st.rerun()
