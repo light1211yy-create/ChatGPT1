@@ -3,6 +3,7 @@ from datetime import date
 
 import streamlit as st
 
+from studio.auto_research_ui import research_ai_panel
 from studio.editor_state import Editor
 from studio.research import CANDIDATE_STATUSES, PERMISSIONS, ResearchStore, effective_permission, today
 
@@ -125,6 +126,8 @@ def research_page(store):
             facility_form(research, theme_id)
     else:
         st.warning("このテーマは承認が取り消されています。保存済み情報は閲覧のみ可能です。編集するにはテーマを再承認してください。")
+    if approved:
+        research_ai_panel(research, theme_id, mapping[theme_id])
     facilities = research.facilities(theme_id)
     if not facilities:
         st.info("施設候補はまだありません。上の新規登録から追加してください。")
