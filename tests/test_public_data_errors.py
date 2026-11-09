@@ -84,8 +84,9 @@ def test_reject_unapproved_public_server_before_network(monkeypatch):
     monkeypatch.setattr(api, "_get_json", lambda *a, **k: pytest.fail("No external requests"))
     with pytest.raises(api.AIResearchError, match="選択が不正"):
         api.discover_osm("大阪", "ホテル", overpass_endpoint="https://example.com/")
+    from studio.gemini import GeminiConsent
     with pytest.raises(api.AIResearchError, match="選択が不正"):
-        api.build_research("ホテル5選", "大阪", "ホテル", "fake", None,
+        api.build_research("ホテル5選", "大阪", "ホテル", "fake", GeminiConsent(True, True, True),
                            overpass_endpoint="https://example.com/")
 
 
