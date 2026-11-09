@@ -55,7 +55,7 @@ def _photo_is_reusable(photo, today_value):
     return not blocked and commercial and sns and edit
 
 
-def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
+def build_canva_package(store, theme_id, facility_ids, *, today_value=None, reviewed_copy=None):
     """Return (zip_bytes, safe_filename, stats). Requires explicit five chosen facilities.
 
     Only rights-reviewed photo page URLs appear in page slots. Original image binaries
@@ -77,6 +77,10 @@ def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
     by_id = {f["id"]: f for f in research.facilities(theme_id)}
     if any(fid not in by_id or by_id[fid]["candidate_status"] == "見送り" for fid in facility_ids):
         raise CanvaPackageError("選択した施設が見つからないか、見送りになっています。")
+    ai_content = None
+    if reviewed_copy is not None:
+        from studio.ai_copy import checked_export_copy
+        ai_content = checked_export_copy(store, theme_id, facility_ids, reviewed_copy)
 
     pages = []
     review = []
@@ -86,6 +90,10 @@ def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
     photo_filled = 0
 
     def add_page(number, kind, title, subtitle, facility="", upper="", lower="", note=""):
+        if ai_content is not None:
+            title = ai_content["pages"][number - 1]["title"]
+            subtitle = ai_content["pages"][number - 1]["body"]
+            note += " AIコピー案を本人が編集・確認済み（公開承認ではありません）。"
         row = {
             "ページ": number, "種類": kind, "見出し": title, "サブコピー": subtitle,
             "施設名": facility, "上写真の掲載元URL": upper, "下写真の掲載元URL": lower,
@@ -148,6 +156,14 @@ def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
         "pages": manifest_pages,
         "notice": "公開前に公式情報・写真権利・実際の写真と施設の一致を確認してください。",
     }
+    if ai_content is not None:
+        manifest["ai_copy"] = {
+            "model": reviewed_copy.draft.model, "generated_at": reviewed_copy.draft.generated_at,
+            "reviewed_at": reviewed_copy.reviewed_at, "public_post_approved": False,
+            "source_ids": list(reviewed_copy.draft.context.source_ids),
+            "user_confirmed_source_facts": reviewed_copy.draft.context.payload["facilities"],
+            "content": ai_content,
+        }
 
     guide = [
         "# MAKASE｜Canva制作パック（7ページ）",
@@ -179,6 +195,10 @@ def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
         "",
         "このファイルの生成はオフラインで、API通信・DB変更・画像ダウンロード・自動投稿を行いません。",
     ]
+    if ai_content is not None:
+        guide += ["", "## 確認済みAIコピー案（公開承認ではありません）",
+                  f"生成モデル：{reviewed_copy.draft.model}",
+                  "キャプション・タグはcaption.txtを参照してください。写真の許諾は別途確認してください。"]
     files = {
         "pages.csv": _csv_bytes(list(pages[0]), pages),
         "source_checklist.csv": _csv_bytes(list(source_rows[0]), source_rows),
@@ -188,6 +208,10 @@ def build_canva_package(store, theme_id, facility_ids, *, today_value=None):
         "manifest.json": json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
         "README.md": ("\n".join(guide) + "\n").encode("utf-8"),
     }
+    if ai_content is not None:
+        files["caption.txt"] = (ai_content["caption"] + "\n\n" + " ".join(ai_content["hashtags"]) + "\n").encode("utf-8")
+        # Recheck the snapshot after assembling the archive inputs, before returning.
+        checked_export_copy(store, theme_id, facility_ids, reviewed_copy)
     output = BytesIO()
     with ZipFile(output, "w", ZIP_DEFLATED) as package:
         for path, data in files.items():
