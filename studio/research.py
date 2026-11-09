@@ -1,3 +1,4 @@
+import json
 """Manual facility research; additive SQLite tables, no remote requests."""
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -76,6 +77,16 @@ class ResearchStore:
                 CREATE INDEX IF NOT EXISTS facilities_theme ON facilities(theme_id);
                 CREATE INDEX IF NOT EXISTS sources_facility ON facility_sources(facility_id);
                 CREATE INDEX IF NOT EXISTS photos_facility ON facility_photos(facility_id);
+                CREATE TABLE IF NOT EXISTS ai_research_runs (
+                    id INTEGER PRIMARY KEY,
+                    theme_id INTEGER NOT NULL REFERENCES themes(id),
+                    area TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    imported_at TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ai_research_theme ON ai_research_runs(theme_id);
             """)
 
     @contextmanager
@@ -174,3 +185,88 @@ class ResearchStore:
 
     def usable_photos(self, facility_id, on=None):
         return [p for p in self.photos(facility_id) if effective_permission(p, on) == "利用可"]
+
+
+    def save_ai_draft(self, theme_id, draft):
+        """Persist an AI proposal separately from verified/manual facility records."""
+        if not isinstance(draft, dict) or not isinstance(draft.get("selected"), list) or len(draft["selected"]) != 5:
+            raise ValueError("AI調査の候補5件を確認できませんでした。保存しません。")
+        if not isinstance(draft.get("area"), str) or not 2 <= len(draft["area"]) <= 65:
+            raise ValueError("AI調査の検索地域が不正です。")
+        data = json.dumps(draft, ensure_ascii=False)
+        if len(data) > 200000:
+            raise ValueError("AI調査結果が大きすぎます。保存しません。")
+        with self.write() as conn:
+            self.require_approved(conn, theme_id)
+            return conn.execute(
+                "INSERT INTO ai_research_runs(theme_id,area,model,payload,created_at) VALUES(?,?,?,?,?)",
+                (theme_id, draft["area"], draft.get("model", ""), data, now())
+            ).lastrowid
+
+    def latest_ai_draft(self, theme_id):
+        with self.store.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM ai_research_runs WHERE theme_id=? ORDER BY id DESC LIMIT 1",
+                (theme_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["data"] = json.loads(result.pop("payload"))
+        return result
+
+    def import_ai_draft(self, run_id):
+        """One atomic, explicit human-initiated import. Never mark photos usable."""
+        with self.write() as conn:
+            record = conn.execute("SELECT * FROM ai_research_runs WHERE id=?", (run_id,)).fetchone()
+            if record is None or record["imported_at"]:
+                raise ValueError("AI調査案がないか、すでに登録済みです。")
+            self.require_approved(conn, record["theme_id"])
+            draft = json.loads(record["payload"])
+            picks = draft.get("selected") or []
+            if len(picks) != 5 or len({p.get("id") for p in picks}) != 5:
+                raise ValueError("AI調査案の5件が不正です。")
+            count = 0
+            for pick in picks:
+                # Existing names are never overwritten; source remains a preliminary source.
+                name = text(pick.get("name"), "施設名", 150, True)
+                found = conn.execute("SELECT id FROM facilities WHERE theme_id=? AND name=?",
+                                     (record["theme_id"], name)).fetchone()
+                if found:
+                    continue
+                website = pick.get("official_url") or ""
+                if website:
+                    website = url(website)  # May be OSM's website field; still unverified.
+                source_link = url(pick["source_url"])
+                note = text("AI調査候補：公式情報・価格・営業時間・写真の利用権は未確認。"
+                            "登録元：OpenStreetMap。選定理由：" + str(pick.get("reason", "")), "比較メモ")
+                address = text(pick.get("address") or "", "住所", 500)
+                description = text(pick.get("description") or "", "施設情報")
+                fid = conn.execute(
+                    """INSERT INTO facilities(name,address,official_url,summary,price_note,
+                    checked_on,candidate_status,notes,updated_at,theme_id,created_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                    (name, address, website, description, "未確認", today().isoformat(),
+                     "優先候補", note, now(), record["theme_id"], now())
+                ).lastrowid
+                conn.execute(
+                    """INSERT INTO facility_sources(label,fact,url,checked_on,notes,updated_at,facility_id)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    ("候補発見元", "OpenStreetMapの公開登録情報。施設の公式確認ではありません。",
+                     source_link, today().isoformat(), "© OpenStreetMap contributors / ODbL", now(), fid)
+                )
+                for photo in pick.get("photos", [])[:2]:
+                    photo_link = url(photo["url"])
+                    conn.execute(
+                        """INSERT INTO facility_photos(label,url,owner,permission_status,evidence,
+                        usage_scope,credit,expires_on,notes,updated_at,facility_id)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                        (text(photo.get("label", "写真候補"), "写真名", 150, True),
+                         photo_link, text(photo.get("owner", ""), "権利者", 300),
+                         "未確認", "", "", "", None,
+                         "Wikimedia Commons検索候補。施設との一致・商用利用・改変条件・帰属表示を人が確認。",
+                         now(), fid)
+                    )
+                count += 1
+            conn.execute("UPDATE ai_research_runs SET imported_at=? WHERE id=?", (now(), run_id))
+            return count
