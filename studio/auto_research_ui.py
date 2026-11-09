@@ -12,7 +12,7 @@ def research_ai_panel(research, theme_id, theme):
              "調査結果は最初に未確認の下書きとして保存し、実際の投稿・画像ダウンロードは行いません。")
     st.caption("情報源：© OpenStreetMap contributors（ODbL）・Wikimedia Commons。"
                "公開データは古い・不完全な場合があります。Google Search Groundingや有料APIは使いません。")
-    st.warning("施設の公式URL・価格・営業時間・写真の商用利用許諾は自動で確認済みにしません。"
+    st.info("施設の公式URL・価格・営業時間・写真の商用利用許諾は自動で確認済みにしません。"
                "写真の選定候補は、施設の写真ではない場合もあります。公開前の確認が必要です。")
     draft = research.latest_ai_draft(theme_id)
     if draft:
