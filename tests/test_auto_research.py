@@ -63,7 +63,7 @@ def test_discover_osm_from_public_records_without_inventing_facts(monkeypatch):
                 "name": f"実在未確認のテスト施設{i}",
                 "website": f"https://example.org/{i}",
                 "addr:city": "大阪市", "addr:street": f"架空町{i}",
-            }} for i in range(8)]}
+            }} for i in range(1, 9)]}
     monkeypatch.setattr(auto_research, "_get_json", get)
     result = auto_research.discover_osm("大阪市", "ホテル")
     assert len(calls) == 2 and calls[0][0] == auto_research.NOMINATIM
