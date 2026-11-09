@@ -130,8 +130,12 @@ def research_page(store):
     if approved:
         research_ai_panel(research, theme_id, mapping[theme_id])
     facilities = research.facilities(theme_id)
+    if approved:
+        # Show the production workflow even when no facilities have been registered.
+        # Otherwise the early return below makes Phase 4 invisible to new users.
+        canva_package_panel(store, theme_id, facilities)
     if not facilities:
-        st.info("施設候補はまだありません。上の新規登録から追加してください。")
+        st.info("施設候補がまだありません。上のAI施設リサーチで5件選定し、施設管理へ登録してください。")
         return
     by_id = {f["id"]: f for f in facilities}
     st.subheader("施設候補の比較")
@@ -173,5 +177,3 @@ def research_page(store):
     if approved:
         with st.expander("写真候補を登録・修正"):
             photo_editor(research, facility_id, photos)
-    if approved:
-        canva_package_panel(store, theme_id, facilities)
