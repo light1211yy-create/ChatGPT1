@@ -6,7 +6,7 @@ from studio.ai_copy_ui import ai_copy_panel
 
 
 def canva_package_panel(store, theme_id, facilities):
-    with st.expander("Canva用7ページ制作パック（Phase 4）", expanded=False):
+    with st.expander("Canva用7ページ制作パック（Phase 4）", expanded=True):
         st.write("投稿テーマと選んだ5施設から、既存Canvaテンプレートへ貼り付ける"
                  "7ページ分の文章・素材参照・確認リストをZIPで作成します。")
         st.caption("オフラインZIP作成は外部通信・DB保存・画像ダウンロードなし。"
