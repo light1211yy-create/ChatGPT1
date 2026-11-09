@@ -8,6 +8,7 @@ import html
 import json
 import math
 import re
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
@@ -18,6 +19,8 @@ from studio.research import url as validate_url
 USER_AGENT = "MAKASE-AI-Studio/0.1 (personal local research; https://github.com/light1211yy-create/ChatGPT1)"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 OVERPASS = "https://overpass-api.de/api/interpreter"
+OVERPASS_PRIVATE_COFFEE = "https://overpass.private.coffee/api/interpreter"
+OVERPASS_SERVERS = {"FOSSGIS（既定）": OVERPASS, "Private.coffee（手動代替）": OVERPASS_PRIVATE_COFFEE}
 COMMONS = "https://commons.wikimedia.org/w/api.php"
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com"
 MODEL = "gemini-3.5-flash-lite"
@@ -28,26 +31,57 @@ class AIResearchError(ValueError):
     """Safe user-visible error text only."""
 
 
+def _endpoint_label(endpoint):
+    if endpoint == NOMINATIM:
+        return "地域検索（Nominatim）"
+    if endpoint == OVERPASS:
+        return "施設検索（Overpass / FOSSGIS）"
+    if endpoint == OVERPASS_PRIVATE_COFFEE:
+        return "施設検索（Overpass / Private.coffee）"
+    if endpoint == COMMONS:
+        return "写真候補検索（Wikimedia Commons）"
+    raise AIResearchError("外部データ取得先が許可されていません。")
+
+
 def _get_json(endpoint, params, timeout=20, max_bytes=1_500_000):
-    """Only fixed, reviewed endpoints. Never fetch untrusted website/asset URLs."""
-    if endpoint not in (NOMINATIM, OVERPASS, COMMONS):
-        raise AIResearchError("外部データ取得先が許可されていません。")
+    """One request to a fixed, reviewed public endpoint. No implicit fallback or retry.
+
+    Report only the reviewed provider and HTTP status / safe error category,
+    never raw response bodies, external URLs with query parameters, or secrets.
+    """
+    label = _endpoint_label(endpoint)
     request = Request(endpoint + "?" + urlencode(params), headers={
         "User-Agent": USER_AGENT, "Accept": "application/json",
     })
     try:
         with urlopen(request, timeout=timeout) as response:
-            if response.status != 200:
-                raise AIResearchError("公開データの取得に失敗しました。少し時間を置いてください。")
+            status = response.status
+            if status != 200:
+                raise AIResearchError(f"{label}：HTTP {status} が返されました。自動再試行はしません。")
             data = response.read(max_bytes + 1)
         if len(data) > max_bytes:
-            raise AIResearchError("外部データが大きすぎるため、保存せず停止しました。")
-        return json.loads(data.decode("utf-8"))
+            raise AIResearchError(f"{label}：応答が大きすぎます。保存していません。")
+        try:
+            return json.loads(data.decode("utf-8"))
+        except (UnicodeError, ValueError):
+            raise AIResearchError(f"{label}：JSON形式のデータが返りませんでした。保存していません。") from None
+    except HTTPError as error:
+        status = error.code
+        if status in (403, 406):
+            advice = "アクセスが拒否されました。サービス側の利用条件やアクセス制限を確認してください。"
+        elif status == 429:
+            advice = "アクセス回数の制限です。連続操作を避け、サービス側の制限に従ってください。"
+        elif status in (408, 502, 503, 504):
+            advice = "サービスが混雑しているか、応答がタイムアウトした可能性があります。"
+        else:
+            advice = "サービス側のHTTPエラーです。"
+        raise AIResearchError(f"{label}：HTTP {status}。{advice}自動再試行はしません。") from None
     except AIResearchError:
         raise
-    except (OSError, TimeoutError, UnicodeError, ValueError):
-        raise AIResearchError("公開データに接続できませんでした。自動再試行は行いません。") from None
-
+    except (URLError, OSError, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        message = "タイムアウト" if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower() else "ネットワーク・DNS・TLS等の接続"
+        raise AIResearchError(f"{label}：{message}エラーです。自動再試行はしません。") from None
 
 def area_center(area):
     if not isinstance(area, str) or not 2 <= len(area.strip()) <= 65:
@@ -69,7 +103,9 @@ def area_center(area):
     return lat, lon
 
 
-def discover_osm(area, kind):
+def discover_osm(area, kind, *, overpass_endpoint=OVERPASS):
+    if overpass_endpoint not in (OVERPASS, OVERPASS_PRIVATE_COFFEE):
+        raise AIResearchError("施設検索サーバーの選択が不正です。")
     if kind not in ("ホテル", "飲食店"):
         raise AIResearchError("調査する施設の種類が不正です。")
     lat, lon = area_center(area)
@@ -78,7 +114,7 @@ def discover_osm(area, kind):
         '[out:json][timeout:22];(nwr' + tag + '(around:12000,'
         + f'{lat:.5f},{lon:.5f}' + '););out center 90;'
     )
-    response = _get_json(OVERPASS, {"data": query}, timeout=30)
+    response = _get_json(overpass_endpoint, {"data": query}, timeout=30)
     elements = response.get("elements", []) if isinstance(response, dict) else []
     if not isinstance(elements, list):
         raise AIResearchError("公開施設情報の形式を読み取れませんでした。")
@@ -239,10 +275,14 @@ def commons_photos(facility_name):
     return photos
 
 
-def build_research(theme_title, area, kind, api_key, consent):
+def build_research(theme_title, area, kind, api_key, consent, *, overpass_endpoint=OVERPASS):
     """One explicit action: 1 geocode + 1 OSM query + 1 AI selection + <=5 Commons lookups."""
     consent.validate()
-    candidates = discover_osm(area, kind)
+    if overpass_endpoint not in (OVERPASS, OVERPASS_PRIVATE_COFFEE):
+        raise AIResearchError("施設検索サーバーの選択が不正です。")
+    # Keep the original two-argument call for the default option and existing offline tests.
+    candidates = (discover_osm(area, kind) if overpass_endpoint == OVERPASS else
+                  discover_osm(area, kind, overpass_endpoint=overpass_endpoint))
     selected = choose_with_gemini(theme_title, candidates, api_key, consent)
     for picked in selected:
         try:
@@ -250,6 +290,6 @@ def build_research(theme_title, area, kind, api_key, consent):
         except AIResearchError:
             picked["photos"] = []
     return {"theme": theme_title, "area": area.strip(), "kind": kind, "model": MODEL,
-            "source": "OpenStreetMap / Wikimedia Commons",
+            "source": "OpenStreetMap / Wikimedia Commons", "facility_data_endpoint": overpass_endpoint,
             "candidates": candidates, "selected": selected,
             "notice": "すべて調査候補です。公式施設情報・料金・写真の利用権を確認するまで公開しないでください。"}
